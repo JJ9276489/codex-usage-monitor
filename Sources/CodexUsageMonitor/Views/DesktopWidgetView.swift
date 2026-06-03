@@ -66,6 +66,21 @@ struct DesktopWidgetView: View {
                 .clipShape(Capsule())
 
             Spacer()
+
+            Button(action: onRefresh) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 12, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .frame(width: 24, height: 24)
+                    .background(Color.white.opacity(0.08), in: Circle())
+                    .overlay {
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .help("Refresh usage")
+            .accessibilityLabel("Refresh usage")
         }
     }
 

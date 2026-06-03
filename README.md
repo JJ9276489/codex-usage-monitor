@@ -9,6 +9,7 @@ The app reads Codex's local state database at `~/.codex/state_5.sqlite` and show
 - all-time local token totals
 - latest observed 5-hour Codex limit headers, when Codex has logged a limit event
 - recent Codex threads and their token counts
+- manual refresh from the desktop widget or menu bar
 
 It does **not** read `auth.json`, access tokens, or OpenAI credentials.
 
