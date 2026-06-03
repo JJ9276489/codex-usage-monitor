@@ -36,6 +36,13 @@ enum UsageFormat {
         return formatter.string(from: date)
     }
 
+    static func shortDateTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
     private static func format(_ value: Double) -> String {
         if value >= 10 {
             return String(format: "%.0f", value)

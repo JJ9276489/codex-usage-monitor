@@ -31,7 +31,7 @@ struct DesktopWidgetView: View {
                         .fill(Color.black.opacity(0.22))
                 }
 
-            VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: .leading, spacing: 7) {
                 topRail
                 mainReadout
                 limitBar
@@ -39,7 +39,7 @@ struct DesktopWidgetView: View {
                 lowerGrid
                 footer
             }
-            .padding(14)
+            .padding(12)
         }
         .frame(width: 300, height: 280)
         .clipShape(shellShape)
@@ -94,7 +94,7 @@ struct DesktopWidgetView: View {
                 .foregroundStyle(.white.opacity(0.56))
 
             Text(UsageFormat.compactTokens(snapshot.tokensToday))
-                .font(.system(size: 38, weight: .heavy, design: .monospaced))
+                .font(.system(size: 34, weight: .heavy, design: .monospaced))
                 .foregroundStyle(.green.opacity(0.92))
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
@@ -123,6 +123,14 @@ struct DesktopWidgetView: View {
                 }
             }
             .frame(height: 8)
+
+            HStack {
+                Text(secondaryResetLabel)
+                Spacer()
+                Text(secondaryObservedLabel)
+            }
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.48))
         }
     }
 
@@ -234,6 +242,23 @@ struct DesktopWidgetView: View {
         return status.secondaryUsedLabel
     }
 
+    private var secondaryResetLabel: String {
+        guard let status = snapshot.limitStatus else {
+            return "WAITING FOR EVENT"
+        }
+        return status.secondaryResetLabel(now: snapshot.generatedAt)
+    }
+
+    private var secondaryObservedLabel: String {
+        guard let observedAt = snapshot.limitStatus?.observedAt else {
+            return "NO LIMIT HEADER"
+        }
+        guard hasCurrentSecondaryLimitStatus else {
+            return "OLD \(UsageFormat.timestamp(observedAt))"
+        }
+        return "SEEN \(UsageFormat.timestamp(observedAt))"
+    }
+
     private var sourceLabel: String {
         if snapshot.warning != nil {
             return "PARTIAL LOCAL"
@@ -326,7 +351,7 @@ private struct BrutalistMetric: View {
                 .minimumScaleFactor(0.75)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(8)
+        .padding(7)
         .overlay {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.white.opacity(0.18), lineWidth: 1)

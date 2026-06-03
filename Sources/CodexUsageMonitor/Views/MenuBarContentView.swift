@@ -81,7 +81,9 @@ struct MenuBarContentView: View {
             MetricRow(label: "token_count events", value: UsageFormat.decimal(Int64(store.snapshot.tokenCountEventCount)))
             if let status = store.snapshot.limitStatus {
                 MetricRow(label: "\(status.primaryWindowLabel) limit", value: status.primaryUsedLabel(now: store.snapshot.generatedAt))
+                MetricRow(label: "\(status.primaryWindowLabel) reset", value: status.resetLabel(now: store.snapshot.generatedAt))
                 MetricRow(label: "\(status.secondaryWindowLabel) limit", value: secondaryUsedLabel(status))
+                MetricRow(label: "\(status.secondaryWindowLabel) reset", value: status.secondaryResetLabel(now: store.snapshot.generatedAt))
             }
         }
         .padding(10)

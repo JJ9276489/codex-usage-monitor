@@ -107,8 +107,8 @@ struct CodexLimitStatus: Equatable {
             return "RESET UNKNOWN"
         }
         if secondaryResetAt <= now {
-            return "LAST RESET \(UsageFormat.timestamp(secondaryResetAt))"
+            return "LAST RESET \(UsageFormat.shortDateTime(secondaryResetAt))"
         }
-        return "RESET \(UsageFormat.timestamp(secondaryResetAt))"
+        return "RESET \(UsageFormat.shortDateTime(secondaryResetAt))"
     }
 }
