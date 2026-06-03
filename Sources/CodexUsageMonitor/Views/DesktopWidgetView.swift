@@ -28,6 +28,10 @@ struct DesktopWidgetView: View {
         snapshot.limitStatus?.primaryWindowIsCurrent(now: snapshot.generatedAt) ?? false
     }
 
+    private var hasCurrentSecondaryLimitStatus: Bool {
+        snapshot.limitStatus?.secondaryWindowIsCurrent(now: snapshot.generatedAt) ?? false
+    }
+
     private var shellShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: 28, style: .continuous)
     }
@@ -45,7 +49,7 @@ struct DesktopWidgetView: View {
                 topRail
                 mainReadout
                 limitBar
-                loadBar
+                secondaryLimitBar
                 lowerGrid
                 footer
             }
@@ -109,12 +113,12 @@ struct DesktopWidgetView: View {
         }
     }
 
-    private var loadBar: some View {
+    private var secondaryLimitBar: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
-                Text("TODAY / 7D LOAD")
+                Text(secondaryWindowLabel)
                 Spacer()
-                Text("\(Int(loadRatio * 100))%")
+                Text(secondaryPercentLabel)
             }
             .font(.system(size: 10, weight: .heavy, design: .monospaced))
             .foregroundStyle(.white.opacity(0.88))
@@ -124,8 +128,8 @@ struct DesktopWidgetView: View {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(Color.white.opacity(0.16))
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.green.opacity(0.82))
-                        .frame(width: proxy.size.width * loadRatio)
+                        .fill(secondaryColor)
+                        .frame(width: proxy.size.width * secondaryRatio)
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
                 }
@@ -231,11 +235,25 @@ struct DesktopWidgetView: View {
         return "SEEN \(UsageFormat.timestamp(observedAt))"
     }
 
+    private var secondaryWindowLabel: String {
+        guard hasCurrentSecondaryLimitStatus else {
+            return "TODAY / 7D SHARE"
+        }
+        return "\(snapshot.limitStatus?.secondaryWindowLabel ?? "7D") LIMIT"
+    }
+
+    private var secondaryPercentLabel: String {
+        guard hasCurrentSecondaryLimitStatus, let status = snapshot.limitStatus else {
+            return "\(Int(loadRatio * 100))%"
+        }
+        return status.secondaryUsedLabel
+    }
+
     private var sourceLabel: String {
         guard let status = snapshot.limitStatus else {
             return "LOCAL TOKENS"
         }
-        if !hasCurrentLimitStatus {
+        if !hasCurrentLimitStatus && !hasCurrentSecondaryLimitStatus {
             return "LOCAL TOKENS"
         }
         return "\(status.planType.uppercased()) / \(status.activeLimit.uppercased())"
@@ -255,6 +273,20 @@ struct DesktopWidgetView: View {
         return min(max(Double(value) / 100, 0), 1)
     }
 
+    private var secondaryRatio: Double {
+        guard hasCurrentSecondaryLimitStatus else {
+            return loadRatio
+        }
+
+        guard
+            let status = snapshot.limitStatus,
+            let value = status.secondaryUsedPercent
+        else {
+            return 0
+        }
+        return min(max(Double(value) / 100, 0), 1)
+    }
+
     private var limitColor: Color {
         guard hasCurrentLimitStatus else {
             return .green.opacity(0.82)
@@ -263,6 +295,26 @@ struct DesktopWidgetView: View {
         guard
             let status = snapshot.limitStatus,
             let value = status.primaryUsedPercent
+        else {
+            return Color.white.opacity(0.22)
+        }
+        if value >= 95 {
+            return .red.opacity(0.88)
+        }
+        if value >= 75 {
+            return .yellow.opacity(0.88)
+        }
+        return .green.opacity(0.82)
+    }
+
+    private var secondaryColor: Color {
+        guard hasCurrentSecondaryLimitStatus else {
+            return .green.opacity(0.82)
+        }
+
+        guard
+            let status = snapshot.limitStatus,
+            let value = status.secondaryUsedPercent
         else {
             return Color.white.opacity(0.22)
         }

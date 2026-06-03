@@ -36,6 +36,34 @@ struct CodexLimitStatus: Equatable {
         return "\(primaryUsedPercent)% USED"
     }
 
+    var secondaryWindowLabel: String {
+        guard let secondaryWindowMinutes else {
+            return "7D"
+        }
+
+        let dayMinutes = 24 * 60
+        if secondaryWindowMinutes == 7 * dayMinutes {
+            return "7D"
+        }
+
+        if secondaryWindowMinutes % dayMinutes == 0 {
+            return "\(secondaryWindowMinutes / dayMinutes)D"
+        }
+
+        if secondaryWindowMinutes % 60 == 0 {
+            return "\(secondaryWindowMinutes / 60)H"
+        }
+
+        return "\(secondaryWindowMinutes)M"
+    }
+
+    var secondaryUsedLabel: String {
+        guard let secondaryUsedPercent else {
+            return "UNKNOWN"
+        }
+        return "\(secondaryUsedPercent)% USED"
+    }
+
     var resetLabel: String {
         guard let primaryResetAt else {
             return "RESET UNKNOWN"
@@ -48,6 +76,13 @@ struct CodexLimitStatus: Equatable {
             return false
         }
         return primaryResetAt > now
+    }
+
+    func secondaryWindowIsCurrent(now: Date = Date()) -> Bool {
+        guard let secondaryResetAt else {
+            return false
+        }
+        return secondaryResetAt > now
     }
 
     func primaryUsedLabel(now: Date = Date()) -> String {
@@ -65,5 +100,15 @@ struct CodexLimitStatus: Equatable {
             return "LAST RESET \(UsageFormat.timestamp(primaryResetAt))"
         }
         return "RESET \(UsageFormat.timestamp(primaryResetAt))"
+    }
+
+    func secondaryResetLabel(now: Date = Date()) -> String {
+        guard let secondaryResetAt else {
+            return "RESET UNKNOWN"
+        }
+        if secondaryResetAt <= now {
+            return "LAST RESET \(UsageFormat.timestamp(secondaryResetAt))"
+        }
+        return "RESET \(UsageFormat.timestamp(secondaryResetAt))"
     }
 }
