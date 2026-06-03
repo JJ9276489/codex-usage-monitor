@@ -28,7 +28,7 @@ Codex writes `token_count` events into local session JSONL files. This app uses 
 
 For time-window totals, the app computes positive deltas between consecutive cumulative `total_token_usage.total_tokens` values per session. That avoids the inaccurate older approach of grouping whole thread totals by `updated_at`.
 
-If no session `token_count` event is available, the app falls back to older local state and API-header sources, but normal Codex Desktop usage should provide token-count records.
+If no session `token_count` event is available, rolling totals stay at zero instead of falling back to inaccurate thread `updated_at` buckets. The all-time total still comes from Codex's local state database.
 
 ## Requirements
 

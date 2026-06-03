@@ -1,14 +1,18 @@
 import Combine
 import Foundation
+import OSLog
 
 @MainActor
 final class CodexUsageStore: ObservableObject {
     @Published private(set) var snapshot: CodexUsageSnapshot
     @Published private(set) var lastError: String?
+    @Published private(set) var isRefreshing = false
 
     private var refreshTimer: Timer?
     private var refreshTask: Task<Void, Never>?
+    private var pendingManualRefresh = false
     private let sessionReader: CodexSessionTokenUsageReader
+    private let logger = Logger(subsystem: "com.jeraldyuan.CodexUsageMonitor", category: "refresh")
     private static let refreshInterval: TimeInterval = 5
 
     init() {
@@ -46,7 +50,7 @@ final class CodexUsageStore: ObservableObject {
 
         let timer = Timer(timeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.refresh()
+                self?.refreshIfIdle()
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -54,10 +58,24 @@ final class CodexUsageStore: ObservableObject {
     }
 
     func refresh() {
+        refresh(queueIfBusy: true, source: "manual")
+    }
+
+    private func refreshIfIdle() {
+        refresh(queueIfBusy: false, source: "auto")
+    }
+
+    private func refresh(queueIfBusy: Bool, source: String) {
         guard refreshTask == nil else {
+            if queueIfBusy {
+                pendingManualRefresh = true
+                logger.info("Refresh queued while current refresh is running: \(source, privacy: .public)")
+            }
             return
         }
 
+        isRefreshing = true
+        logger.info("Refresh started: \(source, privacy: .public)")
         let now = Date()
         let databaseURL = databaseURL
         let logsDatabaseURL = logsDatabaseURL
@@ -97,6 +115,7 @@ final class CodexUsageStore: ObservableObject {
             case .success(let snapshot):
                 self.snapshot = snapshot
                 self.lastError = nil
+                self.logger.info("Refresh succeeded")
             case .failure(let databasePath, let message, let limitStatus):
                 self.snapshot = .unavailable(
                     databasePath: databasePath,
@@ -104,8 +123,15 @@ final class CodexUsageStore: ObservableObject {
                     limitStatus: limitStatus
                 )
                 self.lastError = message
+                self.logger.error("Refresh failed: \(message, privacy: .public)")
             }
             self.refreshTask = nil
+            self.isRefreshing = false
+
+            if self.pendingManualRefresh {
+                self.pendingManualRefresh = false
+                self.refresh()
+            }
         }
     }
 

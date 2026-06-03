@@ -36,6 +36,7 @@ struct MenuBarContentView: View {
                 store.refresh()
             } label: {
                 Image(systemName: "arrow.clockwise")
+                    .symbolEffect(.rotate, value: store.isRefreshing)
             }
             .buttonStyle(.borderless)
             .help("Refresh usage")

@@ -73,11 +73,13 @@ struct DesktopWidgetView: View {
                     .font(.system(size: 12, weight: .heavy))
                     .foregroundStyle(.white.opacity(0.88))
                     .frame(width: 24, height: 24)
-                    .background(Color.white.opacity(0.08), in: Circle())
+                    .background(store.isRefreshing ? Color.green.opacity(0.22) : Color.white.opacity(0.08), in: Circle())
                     .overlay {
                         Circle()
-                            .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                            .strokeBorder(store.isRefreshing ? Color.green.opacity(0.46) : Color.white.opacity(0.16), lineWidth: 1)
                     }
+                    .rotationEffect(.degrees(store.isRefreshing ? 180 : 0))
+                    .animation(.linear(duration: 0.35), value: store.isRefreshing)
             }
             .buttonStyle(.plain)
             .help("Refresh usage")
