@@ -57,6 +57,7 @@ struct MenuBarContentView: View {
 
     private var metrics: some View {
         VStack(spacing: 8) {
+            MetricRow(label: "Last 5 hours", value: UsageFormat.decimal(store.snapshot.tokensLast5Hours))
             MetricRow(label: "Today", value: UsageFormat.decimal(store.snapshot.tokensToday))
             MetricRow(label: "Last 7 days", value: UsageFormat.decimal(store.snapshot.tokensLast7Days))
             MetricRow(label: "Last 30 days", value: UsageFormat.decimal(store.snapshot.tokensLast30Days))

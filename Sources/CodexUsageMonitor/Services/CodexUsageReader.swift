@@ -31,11 +31,13 @@ struct CodexUsageReader {
 
         let calendar = Calendar.autoupdatingCurrent
         let todayStart = calendar.startOfDay(for: now)
+        let fiveHoursAgo = calendar.date(byAdding: .hour, value: -5, to: now) ?? now
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
         let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) ?? now
 
         let totals = try readTotals(
             handle: handle,
+            fiveHoursAgo: Int64(fiveHoursAgo.timeIntervalSince1970),
             todayStart: Int64(todayStart.timeIntervalSince1970),
             sevenDaysAgo: Int64(sevenDaysAgo.timeIntervalSince1970),
             thirtyDaysAgo: Int64(thirtyDaysAgo.timeIntervalSince1970)
@@ -47,6 +49,7 @@ struct CodexUsageReader {
             databasePath: databaseURL.path,
             databaseAvailable: true,
             threadCount: totals.threadCount,
+            tokensLast5Hours: totals.tokensLast5Hours,
             tokensToday: totals.tokensToday,
             tokensLast7Days: totals.tokensLast7Days,
             tokensLast30Days: totals.tokensLast30Days,
@@ -59,6 +62,7 @@ struct CodexUsageReader {
 
     private func readTotals(
         handle: OpaquePointer,
+        fiveHoursAgo: Int64,
         todayStart: Int64,
         sevenDaysAgo: Int64,
         thirtyDaysAgo: Int64
@@ -66,6 +70,7 @@ struct CodexUsageReader {
         let sql = """
         SELECT
             COUNT(*),
+            COALESCE(SUM(CASE WHEN updated_at >= ? THEN tokens_used ELSE 0 END), 0),
             COALESCE(SUM(CASE WHEN updated_at >= ? THEN tokens_used ELSE 0 END), 0),
             COALESCE(SUM(CASE WHEN updated_at >= ? THEN tokens_used ELSE 0 END), 0),
             COALESCE(SUM(CASE WHEN updated_at >= ? THEN tokens_used ELSE 0 END), 0),
@@ -79,9 +84,10 @@ struct CodexUsageReader {
             sqlite3_finalize(statement)
         }
 
-        sqlite3_bind_int64(statement, 1, todayStart)
-        sqlite3_bind_int64(statement, 2, sevenDaysAgo)
-        sqlite3_bind_int64(statement, 3, thirtyDaysAgo)
+        sqlite3_bind_int64(statement, 1, fiveHoursAgo)
+        sqlite3_bind_int64(statement, 2, todayStart)
+        sqlite3_bind_int64(statement, 3, sevenDaysAgo)
+        sqlite3_bind_int64(statement, 4, thirtyDaysAgo)
 
         guard sqlite3_step(statement) == SQLITE_ROW else {
             throw ReaderError.sqlite("Unable to read Codex usage totals.")
@@ -89,10 +95,11 @@ struct CodexUsageReader {
 
         return UsageTotals(
             threadCount: Int(sqlite3_column_int64(statement, 0)),
-            tokensToday: sqlite3_column_int64(statement, 1),
-            tokensLast7Days: sqlite3_column_int64(statement, 2),
-            tokensLast30Days: sqlite3_column_int64(statement, 3),
-            tokensAllTime: sqlite3_column_int64(statement, 4)
+            tokensLast5Hours: sqlite3_column_int64(statement, 1),
+            tokensToday: sqlite3_column_int64(statement, 2),
+            tokensLast7Days: sqlite3_column_int64(statement, 3),
+            tokensLast30Days: sqlite3_column_int64(statement, 4),
+            tokensAllTime: sqlite3_column_int64(statement, 5)
         )
     }
 
@@ -150,6 +157,7 @@ struct CodexUsageReader {
 
 private struct UsageTotals {
     let threadCount: Int
+    let tokensLast5Hours: Int64
     let tokensToday: Int64
     let tokensLast7Days: Int64
     let tokensLast30Days: Int64

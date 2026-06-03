@@ -28,7 +28,9 @@ struct CodexLimitStatusReader {
         let sql = """
         SELECT ts, feedback_log_body
         FROM logs
-        WHERE feedback_log_body LIKE '%X-Codex-Primary-Window-Minutes%'
+        WHERE target IN ('codex_api::endpoint::responses_websocket', 'codex_api::sse::responses')
+          AND feedback_log_body LIKE '%"headers":{%'
+          AND feedback_log_body LIKE '%"X-Codex-Primary-Window-Minutes":"%'
         ORDER BY ts DESC, ts_nanos DESC, id DESC
         LIMIT 1;
         """

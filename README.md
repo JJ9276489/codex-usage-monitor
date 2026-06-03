@@ -5,6 +5,7 @@ A brutalist macOS desktop widget prototype for viewing local Codex token usage.
 The app reads Codex's local state database at `~/.codex/state_5.sqlite` and shows:
 
 - tokens used today
+- local tokens from threads updated in the last 5 hours
 - tokens used in the last 7 and 30 days
 - all-time local token totals
 - latest observed 5-hour Codex limit headers, when Codex has logged a limit event
@@ -21,7 +22,9 @@ Codex exposes live context and rate-limit information through the interactive `/
 
 Business and Enterprise users may have access to Codex analytics APIs, but those are workspace analytics surfaces and can lag. They are not the same as a live personal remaining-limit meter.
 
-When Codex logs a rate-limit event, the app reads the latest `X-Codex-Primary-*` headers from `~/.codex/logs_2.sqlite` and shows the 5-hour window, used percent, and reset time. If the reset time has already passed, the widget treats that header as inactive old data instead of showing a red "limit hit" state. If no limit event has been logged yet, that section stays marked as unavailable.
+When Codex logs a rate-limit event, the app reads the latest `X-Codex-Primary-*` headers from `~/.codex/logs_2.sqlite` and shows the 5-hour window, used percent, and reset time. If the reset time has already passed, the widget treats that header as inactive old data instead of showing a red "limit hit" state.
+
+During normal successful Codex use, the local logs currently do not include live `X-Codex-Primary-Used-Percent` headers. In that case the widget shows local rolling-5-hour token activity instead of pretending it knows the live server-side limit percentage.
 
 ## Requirements
 

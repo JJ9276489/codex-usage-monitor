@@ -17,6 +17,17 @@ struct DesktopWidgetView: View {
         return min(Double(snapshot.tokensToday) / Double(snapshot.tokensLast7Days), 1)
     }
 
+    private var fiveHourLocalRatio: Double {
+        guard snapshot.tokensToday > 0 else {
+            return 0
+        }
+        return min(Double(snapshot.tokensLast5Hours) / Double(snapshot.tokensToday), 1)
+    }
+
+    private var hasCurrentLimitStatus: Bool {
+        snapshot.limitStatus?.primaryWindowIsCurrent(now: snapshot.generatedAt) ?? false
+    }
+
     private var shellShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: 28, style: .continuous)
     }
@@ -187,26 +198,35 @@ struct DesktopWidgetView: View {
     }
 
     private var limitWindowLabel: String {
-        "\(snapshot.limitStatus?.primaryWindowLabel ?? "5H") LIMIT"
+        guard hasCurrentLimitStatus else {
+            return "5H LOCAL TOKENS"
+        }
+        return "\(snapshot.limitStatus?.primaryWindowLabel ?? "5H") LIMIT"
     }
 
     private var limitPercentLabel: String {
         guard let status = snapshot.limitStatus else {
-            return "NO EVENT"
+            return UsageFormat.compactTokens(snapshot.tokensLast5Hours)
         }
-        guard status.primaryWindowIsCurrent(now: snapshot.generatedAt) else {
-            return "INACTIVE"
+        guard hasCurrentLimitStatus else {
+            return UsageFormat.compactTokens(snapshot.tokensLast5Hours)
         }
         return status.primaryUsedLabel
     }
 
     private var limitResetLabel: String {
-        snapshot.limitStatus?.resetLabel(now: snapshot.generatedAt) ?? "RESET UNKNOWN"
+        guard hasCurrentLimitStatus else {
+            return "LIMIT % NOT LOCAL"
+        }
+        return snapshot.limitStatus?.resetLabel(now: snapshot.generatedAt) ?? "RESET UNKNOWN"
     }
 
     private var limitObservedLabel: String {
         guard let observedAt = snapshot.limitStatus?.observedAt else {
-            return "NO HEADER"
+            return "NO LIMIT HEADER"
+        }
+        guard hasCurrentLimitStatus else {
+            return "OLD \(UsageFormat.timestamp(observedAt))"
         }
         return "SEEN \(UsageFormat.timestamp(observedAt))"
     }
@@ -215,16 +235,19 @@ struct DesktopWidgetView: View {
         guard let status = snapshot.limitStatus else {
             return "LOCAL TOKENS"
         }
-        if !status.primaryWindowIsCurrent(now: snapshot.generatedAt) {
-            return "OLD HEADER"
+        if !hasCurrentLimitStatus {
+            return "LOCAL TOKENS"
         }
         return "\(status.planType.uppercased()) / \(status.activeLimit.uppercased())"
     }
 
     private var limitRatio: Double {
+        guard hasCurrentLimitStatus else {
+            return fiveHourLocalRatio
+        }
+
         guard
             let status = snapshot.limitStatus,
-            status.primaryWindowIsCurrent(now: snapshot.generatedAt),
             let value = status.primaryUsedPercent
         else {
             return 0
@@ -233,9 +256,12 @@ struct DesktopWidgetView: View {
     }
 
     private var limitColor: Color {
+        guard hasCurrentLimitStatus else {
+            return .green.opacity(0.82)
+        }
+
         guard
             let status = snapshot.limitStatus,
-            status.primaryWindowIsCurrent(now: snapshot.generatedAt),
             let value = status.primaryUsedPercent
         else {
             return Color.white.opacity(0.22)
