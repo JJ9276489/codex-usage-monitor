@@ -23,7 +23,8 @@ actor CodexSessionTokenUsageReader {
         let fiveHoursAgo = calendar.date(byAdding: .hour, value: -5, to: now) ?? now
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
         let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) ?? now
-        let candidateFileURLs = (fileURLs ?? sessionFileURLs(modifiedSince: thirtyDaysAgo)).deduplicatedAndSortedByPath()
+        let candidateFileURLs = ((fileURLs ?? []) + sessionFileURLs(modifiedSince: thirtyDaysAgo))
+            .deduplicatedAndSortedByPath()
 
         var tokensLast5Hours: Int64 = 0
         var tokensToday: Int64 = 0
@@ -170,7 +171,7 @@ actor CodexSessionTokenUsageReader {
               let payload = dictionary["payload"] as? [String: Any],
               payload["type"] as? String == "token_count",
               let timestampRaw = dictionary["timestamp"] as? String,
-              let timestamp = Self.timestampFormatter.date(from: timestampRaw),
+              let timestamp = Self.timestamp(from: timestampRaw),
               let info = payload["info"] as? [String: Any],
               let totalUsage = info["total_token_usage"] as? [String: Any],
               let totalTokens = int64Value(totalUsage["total_tokens"])
@@ -281,9 +282,19 @@ actor CodexSessionTokenUsageReader {
         return nil
     }
 
-    private static let timestampFormatter: ISO8601DateFormatter = {
+    private static func timestamp(from value: String) -> Date? {
+        timestampFormatterWithFractionalSeconds.date(from: value) ?? timestampFormatter.date(from: value)
+    }
+
+    private static let timestampFormatterWithFractionalSeconds: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let timestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
 }

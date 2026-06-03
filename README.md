@@ -66,6 +66,17 @@ Useful modes:
 ./script/build_and_run.sh --build-only
 ```
 
+## Audit Usage
+
+To verify the widget against raw local Codex data:
+
+```bash
+./script/audit_usage.py
+./script/audit_usage.py --json
+```
+
+The audit script uses the same source-of-truth model as the app: positive deltas between per-session cumulative `total_token_usage.total_tokens` values, plus all-time totals from `state_5.sqlite`.
+
 ## Install At Login
 
 ```bash

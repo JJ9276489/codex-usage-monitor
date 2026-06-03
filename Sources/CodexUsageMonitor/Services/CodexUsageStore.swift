@@ -140,9 +140,8 @@ final class CodexUsageStore: ObservableObject {
             return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
         }
 
-        return FileManager.default
-            .homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/state_5.sqlite")
+        return defaultCodexHomeURL()
+            .appendingPathComponent("state_5.sqlite")
     }
 
     private static func defaultLogsDatabaseURL() -> URL {
@@ -150,9 +149,8 @@ final class CodexUsageStore: ObservableObject {
             return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
         }
 
-        return FileManager.default
-            .homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/logs_2.sqlite")
+        return defaultCodexHomeURL()
+            .appendingPathComponent("logs_2.sqlite")
     }
 
     private static func defaultCodexHomeURL() -> URL {
