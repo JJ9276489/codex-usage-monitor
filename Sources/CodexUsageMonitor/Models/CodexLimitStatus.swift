@@ -42,4 +42,28 @@ struct CodexLimitStatus: Equatable {
         }
         return "RESET \(UsageFormat.timestamp(primaryResetAt))"
     }
+
+    func primaryWindowIsCurrent(now: Date = Date()) -> Bool {
+        guard let primaryResetAt else {
+            return false
+        }
+        return primaryResetAt > now
+    }
+
+    func primaryUsedLabel(now: Date = Date()) -> String {
+        guard primaryWindowIsCurrent(now: now) else {
+            return "RESET PASSED"
+        }
+        return primaryUsedLabel
+    }
+
+    func resetLabel(now: Date = Date()) -> String {
+        guard let primaryResetAt else {
+            return "RESET UNKNOWN"
+        }
+        if primaryResetAt <= now {
+            return "LAST RESET \(UsageFormat.timestamp(primaryResetAt))"
+        }
+        return "RESET \(UsageFormat.timestamp(primaryResetAt))"
+    }
 }

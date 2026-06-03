@@ -2,10 +2,12 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class DesktopWidgetController: ObservableObject {
+final class DesktopWidgetController: NSObject, ObservableObject, NSWindowDelegate {
     @Published private(set) var isVisible = false
 
     private var panel: NSPanel?
+    private let positionXKey = "desktopWidgetOriginX"
+    private let positionYKey = "desktopWidgetOriginY"
 
     func show(store: CodexUsageStore) {
         if let panel {
@@ -15,7 +17,7 @@ final class DesktopWidgetController: ObservableObject {
             return
         }
 
-        let panelSize = NSSize(width: 372, height: 282)
+        let panelSize = NSSize(width: 300, height: 236)
         let panel = NSPanel(
             contentRect: NSRect(origin: .zero, size: panelSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -25,12 +27,13 @@ final class DesktopWidgetController: ObservableObject {
 
         panel.backgroundColor = .clear
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
-        panel.hasShadow = false
+        panel.hasShadow = true
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = true
         panel.isOpaque = false
         panel.isReleasedWhenClosed = false
         panel.level = Self.desktopWidgetLevel
+        panel.delegate = self
 
         panel.contentViewController = NSHostingController(
             rootView: DesktopWidgetView(
@@ -68,14 +71,40 @@ final class DesktopWidgetController: ObservableObject {
     }
 
     private func position(_ panel: NSPanel) {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: positionXKey) != nil, defaults.object(forKey: positionYKey) != nil {
+            panel.setFrameOrigin(
+                NSPoint(
+                    x: defaults.double(forKey: positionXKey),
+                    y: defaults.double(forKey: positionYKey)
+                )
+            )
+            return
+        }
+
         guard let frame = NSScreen.main?.visibleFrame else {
             return
         }
 
         let margin: CGFloat = 24
-        let x = frame.maxX - panel.frame.width - margin
-        let y = frame.maxY - panel.frame.height - margin
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
+        let nativeWidgetClearance: CGFloat = 130
+        panel.setFrameOrigin(
+            NSPoint(
+                x: frame.minX + margin,
+                y: frame.maxY - panel.frame.height - nativeWidgetClearance
+            )
+        )
+    }
+
+    nonisolated func windowDidMove(_ notification: Notification) {
+        Task { @MainActor in
+            guard let panel = notification.object as? NSPanel, panel === self.panel else {
+                return
+            }
+            let defaults = UserDefaults.standard
+            defaults.set(panel.frame.origin.x, forKey: positionXKey)
+            defaults.set(panel.frame.origin.y, forKey: positionYKey)
+        }
     }
 
     private static var desktopWidgetLevel: NSWindow.Level {
