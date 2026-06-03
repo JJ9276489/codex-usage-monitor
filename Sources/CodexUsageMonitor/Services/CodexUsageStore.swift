@@ -87,7 +87,7 @@ final class CodexUsageStore: ObservableObject {
             let recentSessionURLs = try? usageReader.recentSessionFileURLs(since: thirtyDaysAgo)
             let sessionUsage = try? await sessionReader.loadSummary(now: now, fileURLs: recentSessionURLs)
             let headerLimitStatus = try? CodexLimitStatusReader(databaseURL: logsDatabaseURL).loadLatest()
-            let limitStatus = sessionUsage?.latestLimitStatus ?? headerLimitStatus
+            let limitStatus = latestLimitStatus(sessionUsage?.latestLimitStatus, headerLimitStatus)
 
             do {
                 let snapshot = try usageReader.loadSnapshot(
@@ -167,4 +167,14 @@ final class CodexUsageStore: ObservableObject {
 private enum RefreshResult {
     case success(CodexUsageSnapshot)
     case failure(databasePath: String, message: String, limitStatus: CodexLimitStatus?)
+}
+
+private func latestLimitStatus(_ lhs: CodexLimitStatus?, _ rhs: CodexLimitStatus?) -> CodexLimitStatus? {
+    guard let lhs else {
+        return rhs
+    }
+    guard let rhs else {
+        return lhs
+    }
+    return lhs.observedAt >= rhs.observedAt ? lhs : rhs
 }

@@ -30,6 +30,8 @@ def token_count_line(
     last_tokens=None,
     primary=None,
     secondary=None,
+    limit_id="codex",
+    plan_type="plus",
     fractional=True,
     include_last_usage=True,
 ):
@@ -55,8 +57,8 @@ def token_count_line(
 
     if primary is not None or secondary is not None:
         payload["payload"]["rate_limits"] = {
-            "limit_id": "codex",
-            "plan_type": "plus",
+            "limit_id": limit_id,
+            "plan_type": plan_type,
             "primary": primary,
             "secondary": secondary,
             "credits": {
@@ -67,6 +69,23 @@ def token_count_line(
             "rate_limit_reached_type": None,
         }
 
+    return json.dumps(payload, separators=(",", ":"))
+
+
+def empty_limit_line(epoch_value, total_tokens, last_tokens=0):
+    payload = json.loads(token_count_line(epoch_value, total_tokens, last_tokens=last_tokens))
+    payload["payload"]["rate_limits"] = {
+        "limit_id": "premium",
+        "plan_type": "plus",
+        "primary": None,
+        "secondary": None,
+        "credits": {
+            "has_credits": False,
+            "unlimited": False,
+            "balance": "0",
+        },
+        "rate_limit_reached_type": None,
+    }
     return json.dumps(payload, separators=(",", ":"))
 
 
@@ -166,6 +185,7 @@ def main():
                     },
                     fractional=False,
                 ),
+                empty_limit_line(today_10 + 60, 50_250),
             ],
         )
         write_lines(
@@ -207,7 +227,7 @@ def main():
 
         assert_equal(result["session_file_count"], 4, "session_file_count")
         assert_equal(result["failed_session_file_count"], 1, "failed_session_file_count")
-        assert_equal(result["token_count_event_count"], 9, "token_count_event_count")
+        assert_equal(result["token_count_event_count"], 10, "token_count_event_count")
         assert_equal(result["missing_last_usage_event_count"], 1, "missing_last_usage_event_count")
         assert_equal(result["tokens_last_5_hours"], 250, "tokens_last_5_hours")
         assert_equal(result["tokens_today"], 250, "tokens_today")
@@ -224,6 +244,7 @@ def main():
             44.0,
             "latest secondary percent",
         )
+        assert_equal(result["latest_limit"]["rate_limits"]["limit_id"], "codex", "latest limit id")
 
     print("usage accuracy fixture tests passed")
 

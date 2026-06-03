@@ -41,6 +41,7 @@ struct TestSwiftUsageReader {
                     secondary: ["used_percent": 44.0, "window_minutes": 10_080, "resets_at": now.timeIntervalSince1970 + 2_000],
                     fractional: false
                 ),
+                emptyLimitLine(today10.addingTimeInterval(60), totalTokens: 50_250),
             ],
             to: active
         )
@@ -65,7 +66,7 @@ struct TestSwiftUsageReader {
 
         try assertEqual(summary.sessionFileCount, 4, "sessionFileCount")
         try assertEqual(summary.failedSessionFileCount, 1, "failedSessionFileCount")
-        try assertEqual(summary.tokenCountEventCount, 9, "tokenCountEventCount")
+        try assertEqual(summary.tokenCountEventCount, 10, "tokenCountEventCount")
         try assertEqual(summary.missingLastUsageEventCount, 1, "missingLastUsageEventCount")
         try assertEqual(summary.tokensLast5Hours, 250, "tokensLast5Hours")
         try assertEqual(summary.tokensToday, 250, "tokensToday")
@@ -74,6 +75,7 @@ struct TestSwiftUsageReader {
         try assertEqual(summary.tokensAllTime, 7_450, "tokensAllTime")
         try assertEqual(summary.latestLimitStatus?.primaryUsedPercent, 33, "primaryUsedPercent")
         try assertEqual(summary.latestLimitStatus?.secondaryUsedPercent, 44, "secondaryUsedPercent")
+        try assertEqual(summary.latestLimitStatus?.activeLimit, "codex", "activeLimit")
 
         print("swift usage reader fixture tests passed")
     }
@@ -143,6 +145,29 @@ struct TestSwiftUsageReader {
             ]
             payload["payload"] = inner
         }
+
+        let data = try! JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+        return String(data: data, encoding: .utf8)!
+    }
+
+    private static func emptyLimitLine(_ timestamp: Date, totalTokens: Int) -> String {
+        var payload = try! JSONSerialization.jsonObject(
+            with: tokenCountLine(timestamp, totalTokens: totalTokens, lastTokens: 0).data(using: .utf8)!
+        ) as! [String: Any]
+        var inner = payload["payload"] as! [String: Any]
+        inner["rate_limits"] = [
+            "limit_id": "premium",
+            "plan_type": "plus",
+            "primary": NSNull(),
+            "secondary": NSNull(),
+            "credits": [
+                "has_credits": false,
+                "unlimited": false,
+                "balance": "0",
+            ],
+            "rate_limit_reached_type": NSNull(),
+        ]
+        payload["payload"] = inner
 
         let data = try! JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
         return String(data: data, encoding: .utf8)!

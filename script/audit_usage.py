@@ -41,6 +41,20 @@ def int_value(value):
         return None
 
 
+def has_limit_window(window):
+    if not isinstance(window, dict):
+        return False
+    return any(key in window for key in ("used_percent", "window_minutes", "resets_at"))
+
+
+def usable_rate_limits(rate_limits):
+    if not isinstance(rate_limits, dict):
+        return None
+    if has_limit_window(rate_limits.get("primary")) or has_limit_window(rate_limits.get("secondary")):
+        return rate_limits
+    return None
+
+
 def recent_paths_from_db(database_path, since_epoch):
     if not database_path.exists():
         return [], None
@@ -136,7 +150,7 @@ def token_count_events(path):
             yield {
                 "timestamp": observed_at,
                 "increment": increment,
-                "rate_limits": payload.get("rate_limits"),
+                "rate_limits": usable_rate_limits(payload.get("rate_limits")),
                 "missing_last_usage": last_tokens is None,
             }
 

@@ -237,6 +237,9 @@ actor CodexSessionTokenUsageReader {
         let primary = dictionary["primary"] as? [String: Any]
         let secondary = dictionary["secondary"] as? [String: Any]
         let credits = dictionary["credits"] as? [String: Any]
+        guard Self.hasLimitWindow(primary) || Self.hasLimitWindow(secondary) else {
+            return nil
+        }
 
         return CodexLimitStatus(
             observedAt: observedAt,
@@ -251,6 +254,15 @@ actor CodexSessionTokenUsageReader {
             hasCredits: boolValue(credits?["has_credits"]),
             creditsBalance: stringValue(credits?["balance"])
         )
+    }
+
+    private static func hasLimitWindow(_ window: [String: Any]?) -> Bool {
+        guard let window else {
+            return false
+        }
+        return window["used_percent"] != nil
+            || window["window_minutes"] != nil
+            || window["resets_at"] != nil
     }
 
     private func int64Value(_ value: Any?) -> Int64? {
