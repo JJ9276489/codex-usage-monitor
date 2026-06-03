@@ -67,7 +67,7 @@ final class CodexUsageStore: ObservableObject {
         let worker = Task.detached(priority: .utility) { () -> RefreshResult in
             let usageReader = CodexUsageReader(databaseURL: databaseURL)
             let recentSessionURLs = try? usageReader.recentSessionFileURLs(since: thirtyDaysAgo)
-            let sessionUsage = try? sessionReader.loadSummary(now: now, fileURLs: recentSessionURLs)
+            let sessionUsage = try? await sessionReader.loadSummary(now: now, fileURLs: recentSessionURLs)
             let headerLimitStatus = try? CodexLimitStatusReader(databaseURL: logsDatabaseURL).loadLatest()
             let limitStatus = sessionUsage?.latestLimitStatus ?? headerLimitStatus
 

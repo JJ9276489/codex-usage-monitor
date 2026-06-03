@@ -9,7 +9,7 @@ struct CodexSessionUsageSummary: Equatable {
     let latestLimitStatus: CodexLimitStatus?
 }
 
-final class CodexSessionTokenUsageReader: @unchecked Sendable {
+actor CodexSessionTokenUsageReader {
     let codexHomeURL: URL
     private var cache: [String: CachedFileUsage] = [:]
 
@@ -36,7 +36,9 @@ final class CodexSessionTokenUsageReader: @unchecked Sendable {
         cache = cache.filter { activePaths.contains($0.key) }
 
         for fileURL in candidateFileURLs {
-            let usage = try usage(for: fileURL)
+            guard let usage = try? usage(for: fileURL) else {
+                continue
+            }
 
             for event in usage.events {
                 tokensAllTime += event.increment

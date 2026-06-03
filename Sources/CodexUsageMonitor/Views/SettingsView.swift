@@ -15,7 +15,7 @@ struct SettingsView: View {
             }
 
             Section("Limit Status") {
-                Text("This app reads local Codex thread token totals. It does not read credentials and does not call OpenAI APIs. Live remaining quota currently requires Codex /status.")
+                Text("This app reads local Codex token_count events and rate_limits payloads. It does not read credentials and does not call OpenAI APIs. Limit percentages can be stale until Codex writes the next token_count event.")
                     .foregroundStyle(.secondary)
             }
         }

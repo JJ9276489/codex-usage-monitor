@@ -10,20 +10,6 @@ struct DesktopWidgetView: View {
         store.snapshot
     }
 
-    private var loadRatio: Double {
-        guard snapshot.tokensLast7Days > 0 else {
-            return 0
-        }
-        return min(Double(snapshot.tokensToday) / Double(snapshot.tokensLast7Days), 1)
-    }
-
-    private var fiveHourLocalRatio: Double {
-        guard snapshot.tokensToday > 0 else {
-            return 0
-        }
-        return min(Double(snapshot.tokensLast5Hours) / Double(snapshot.tokensToday), 1)
-    }
-
     private var hasCurrentLimitStatus: Bool {
         snapshot.limitStatus?.primaryWindowIsCurrent(now: snapshot.generatedAt) ?? false
     }
@@ -202,27 +188,24 @@ struct DesktopWidgetView: View {
     }
 
     private var limitWindowLabel: String {
-        guard hasCurrentLimitStatus else {
-            return "5H LOCAL TOKENS"
-        }
         return "\(snapshot.limitStatus?.primaryWindowLabel ?? "5H") LIMIT"
     }
 
     private var limitPercentLabel: String {
         guard let status = snapshot.limitStatus else {
-            return UsageFormat.compactTokens(snapshot.tokensLast5Hours)
+            return "NO DATA"
         }
         guard hasCurrentLimitStatus else {
-            return UsageFormat.compactTokens(snapshot.tokensLast5Hours)
+            return "STALE"
         }
         return status.primaryUsedLabel
     }
 
     private var limitResetLabel: String {
-        guard hasCurrentLimitStatus else {
-            return "LIMIT % NOT LOCAL"
+        guard let status = snapshot.limitStatus else {
+            return "WAITING FOR EVENT"
         }
-        return snapshot.limitStatus?.resetLabel(now: snapshot.generatedAt) ?? "RESET UNKNOWN"
+        return status.resetLabel(now: snapshot.generatedAt)
     }
 
     private var limitObservedLabel: String {
@@ -236,15 +219,15 @@ struct DesktopWidgetView: View {
     }
 
     private var secondaryWindowLabel: String {
-        guard hasCurrentSecondaryLimitStatus else {
-            return "TODAY / 7D SHARE"
-        }
         return "\(snapshot.limitStatus?.secondaryWindowLabel ?? "7D") LIMIT"
     }
 
     private var secondaryPercentLabel: String {
-        guard hasCurrentSecondaryLimitStatus, let status = snapshot.limitStatus else {
-            return "\(Int(loadRatio * 100))%"
+        guard let status = snapshot.limitStatus else {
+            return "NO DATA"
+        }
+        guard hasCurrentSecondaryLimitStatus else {
+            return "STALE"
         }
         return status.secondaryUsedLabel
     }
@@ -254,17 +237,14 @@ struct DesktopWidgetView: View {
             return "LOCAL TOKENS"
         }
         if !hasCurrentLimitStatus && !hasCurrentSecondaryLimitStatus {
-            return "LOCAL TOKENS"
+            return "LIMITS STALE"
         }
         return "\(status.planType.uppercased()) / \(status.activeLimit.uppercased())"
     }
 
     private var limitRatio: Double {
-        guard hasCurrentLimitStatus else {
-            return fiveHourLocalRatio
-        }
-
         guard
+            hasCurrentLimitStatus,
             let status = snapshot.limitStatus,
             let value = status.primaryUsedPercent
         else {
@@ -274,11 +254,8 @@ struct DesktopWidgetView: View {
     }
 
     private var secondaryRatio: Double {
-        guard hasCurrentSecondaryLimitStatus else {
-            return loadRatio
-        }
-
         guard
+            hasCurrentSecondaryLimitStatus,
             let status = snapshot.limitStatus,
             let value = status.secondaryUsedPercent
         else {
@@ -289,7 +266,7 @@ struct DesktopWidgetView: View {
 
     private var limitColor: Color {
         guard hasCurrentLimitStatus else {
-            return .green.opacity(0.82)
+            return Color.white.opacity(0.22)
         }
 
         guard
@@ -309,7 +286,7 @@ struct DesktopWidgetView: View {
 
     private var secondaryColor: Color {
         guard hasCurrentSecondaryLimitStatus else {
-            return .green.opacity(0.82)
+            return Color.white.opacity(0.22)
         }
 
         guard

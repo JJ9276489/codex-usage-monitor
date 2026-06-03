@@ -44,9 +44,9 @@ struct MenuBarContentView: View {
 
     private var quotaNotice: some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
+            Image(systemName: "info.circle")
                 .foregroundStyle(.secondary)
-            Text("Remaining quota is not exposed through a stable local source yet. Use Codex /status for live limits.")
+            Text("Rolling token totals come from local Codex token_count events. Limit percentages come from the latest token_count rate_limits payload when it has not expired.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -63,6 +63,10 @@ struct MenuBarContentView: View {
             MetricRow(label: "Last 30 days", value: UsageFormat.decimal(store.snapshot.tokensLast30Days))
             MetricRow(label: "All time", value: UsageFormat.decimal(store.snapshot.tokensAllTime))
             MetricRow(label: "Threads", value: "\(store.snapshot.threadCount)")
+            if let status = store.snapshot.limitStatus {
+                MetricRow(label: "\(status.primaryWindowLabel) limit", value: status.primaryUsedLabel(now: store.snapshot.generatedAt))
+                MetricRow(label: "\(status.secondaryWindowLabel) limit", value: secondaryUsedLabel(status))
+            }
         }
         .padding(10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -104,6 +108,13 @@ struct MenuBarContentView: View {
             }
             .keyboardShortcut("q")
         }
+    }
+
+    private func secondaryUsedLabel(_ status: CodexLimitStatus) -> String {
+        guard status.secondaryWindowIsCurrent(now: store.snapshot.generatedAt) else {
+            return "INACTIVE"
+        }
+        return status.secondaryUsedLabel
     }
 }
 

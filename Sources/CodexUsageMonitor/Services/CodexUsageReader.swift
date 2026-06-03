@@ -41,14 +41,14 @@ struct CodexUsageReader {
             databasePath: databaseURL.path,
             databaseAvailable: true,
             threadCount: totals.threadCount,
-            tokensLast5Hours: sessionUsage?.tokensLast5Hours ?? totals.tokensLast5Hours,
-            tokensToday: sessionUsage?.tokensToday ?? totals.tokensToday,
-            tokensLast7Days: sessionUsage?.tokensLast7Days ?? totals.tokensLast7Days,
-            tokensLast30Days: sessionUsage?.tokensLast30Days ?? totals.tokensLast30Days,
+            tokensLast5Hours: sessionUsage?.tokensLast5Hours ?? 0,
+            tokensToday: sessionUsage?.tokensToday ?? 0,
+            tokensLast7Days: sessionUsage?.tokensLast7Days ?? 0,
+            tokensLast30Days: sessionUsage?.tokensLast30Days ?? 0,
             tokensAllTime: totals.tokensAllTime,
             limitStatus: limitStatus,
             recentThreads: recentThreads,
-            warning: nil
+            warning: sessionUsage == nil ? "No session token_count events were available for rolling totals." : nil
         )
     }
 
