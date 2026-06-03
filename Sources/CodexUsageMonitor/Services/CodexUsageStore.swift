@@ -12,7 +12,7 @@ final class CodexUsageStore: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var pendingManualRefresh = false
     private let sessionReader: CodexSessionTokenUsageReader
-    private let logger = Logger(subsystem: "com.jeraldyuan.CodexUsageMonitor", category: "refresh")
+    private let logger = Logger(subsystem: "io.github.jj9276489.CodexUsageMonitor", category: "refresh")
     private static let refreshInterval: TimeInterval = 5
 
     init() {

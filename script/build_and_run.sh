@@ -3,7 +3,7 @@ set -euo pipefail
 
 MODE="${1:-run}"
 APP_NAME="CodexUsageMonitor"
-BUNDLE_ID="com.jeraldyuan.CodexUsageMonitor"
+BUNDLE_ID="io.github.jj9276489.CodexUsageMonitor"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

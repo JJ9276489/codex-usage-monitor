@@ -2,6 +2,8 @@
 
 A brutalist macOS desktop widget prototype for viewing local Codex token usage.
 
+This is a local-only monitor. It does not call OpenAI APIs or send usage data anywhere.
+
 The app reads Codex's local session logs and state database:
 
 - `~/.codex/sessions/**/*.jsonl`
@@ -33,8 +35,19 @@ If no session `token_count` event is available, rolling totals stay at zero inst
 ## Requirements
 
 - macOS 14 or newer
-- Swift 6 toolchain
-- Codex installed and used locally at least once
+- Swift 6 toolchain from Xcode or Xcode Command Line Tools
+- Codex installed and used locally at least once on the same Mac
+- Local Codex files under `~/.codex`, or a custom `CODEX_HOME`
+
+This is not a signed/notarized binary distribution yet. The supported public path is to clone the repo and build locally.
+
+## Quick Start
+
+```bash
+git clone https://github.com/JJ9276489/codex-usage-monitor.git
+cd codex-usage-monitor
+./script/build_and_run.sh
+```
 
 ## Build And Run
 
@@ -60,6 +73,19 @@ Useful modes:
 ```
 
 This builds the app, copies it to `~/Applications/CodexUsageMonitor.app`, and registers a user LaunchAgent so it opens when you log in.
+
+If you use custom paths, set them while installing so the LaunchAgent keeps them:
+
+```bash
+CODEX_HOME=/path/to/.codex ./script/install_login_item.sh
+CODEX_USAGE_DB=/path/to/state_5.sqlite ./script/install_login_item.sh
+```
+
+To uninstall:
+
+```bash
+./script/uninstall.sh
+```
 
 If SwiftPM fails before compiling source with a PackageDescription or SDK mismatch, the run script automatically falls back to direct `swiftc` compilation.
 
@@ -94,7 +120,13 @@ The app reads local session `token_count` events for numeric usage. It also read
 - `tokens_used`
 - `updated_at`
 
-Thread titles may appear in the menu UI. Session JSONL files can contain conversation/tool content, but the app only parses `token_count` event fields. Do not publish screenshots if your thread titles include private information.
+Thread titles may appear in the menu UI. Session JSONL files can contain conversation/tool content, but the app only parses `token_count` event fields and does not transmit file contents. Do not publish screenshots if your thread titles include private information.
+
+## Public Compatibility
+
+This project depends on Codex's local file formats, especially session JSONL `token_count` events and `state_5.sqlite`. Those are not a public stability contract, so a future Codex release can break the reader. If the widget shows zeros or stale limit bars after a Codex update, check whether new `token_count` events are still being written.
+
+The widget will not work for people who only use ChatGPT in a browser, people without local Codex session files, or non-macOS systems.
 
 ## Roadmap
 
