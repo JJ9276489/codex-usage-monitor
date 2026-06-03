@@ -31,21 +31,25 @@ def token_count_line(
     primary=None,
     secondary=None,
     fractional=True,
+    include_last_usage=True,
 ):
     last_tokens = total_tokens if last_tokens is None else last_tokens
+    info = {
+        "total_token_usage": {
+            "total_tokens": total_tokens,
+        },
+    }
+    if include_last_usage:
+        info["last_token_usage"] = {
+            "total_tokens": last_tokens,
+        }
+
     payload = {
         "type": "event_msg",
         "timestamp": iso(epoch_value, fractional=fractional),
         "payload": {
             "type": "token_count",
-            "info": {
-                "total_token_usage": {
-                    "total_tokens": total_tokens,
-                },
-                "last_token_usage": {
-                    "total_tokens": last_tokens,
-                }
-            },
+            "info": info,
         },
     }
 
@@ -141,6 +145,7 @@ def main():
         active_path = sessions / "rollout-active.jsonl"
         discovered_by_db_path = archived / "rollout-db.jsonl"
         discovered_by_filesystem_path = sessions / "rollout-filesystem-only.jsonl"
+        unreadable_candidate_path = sessions / "unreadable-candidate.jsonl"
         missing_path = sessions / "missing.jsonl"
 
         write_lines(
@@ -148,7 +153,7 @@ def main():
             [
                 token_count_line(today_7, 50_100, last_tokens=100),
                 token_count_line(today_9, 50_180, last_tokens=80),
-                token_count_line(today_9 + 1800, 50_180, last_tokens=80),
+                token_count_line(today_9 + 1800, 50_180, include_last_usage=False),
                 token_count_line(
                     today_10,
                     50_250,
@@ -178,20 +183,32 @@ def main():
                 token_count_line(six_days_ago, 1_005_900, last_tokens=300),
             ],
         )
+        unreadable_candidate_path.mkdir(parents=True)
 
         create_state_db(
             usage_db,
             [
                 ("active", str(active_path), int(today_10), 250, "active", "codex", "gpt-test"),
                 ("db", str(discovered_by_db_path), int(two_days_ago), 1300, "db", "codex", "gpt-test"),
+                (
+                    "unreadable",
+                    str(unreadable_candidate_path),
+                    int(today_10),
+                    0,
+                    "unreadable",
+                    "codex",
+                    "gpt-test",
+                ),
                 ("missing", str(missing_path), int(today_10), 999999, "missing", "codex", "gpt-test"),
             ],
         )
 
         result = run_audit(codex_home, usage_db, now)
 
-        assert_equal(result["session_file_count"], 3, "session_file_count")
+        assert_equal(result["session_file_count"], 4, "session_file_count")
+        assert_equal(result["failed_session_file_count"], 1, "failed_session_file_count")
         assert_equal(result["token_count_event_count"], 9, "token_count_event_count")
+        assert_equal(result["missing_last_usage_event_count"], 1, "missing_last_usage_event_count")
         assert_equal(result["tokens_last_5_hours"], 250, "tokens_last_5_hours")
         assert_equal(result["tokens_today"], 250, "tokens_today")
         assert_equal(result["tokens_last_7_days"], 1850, "tokens_last_7_days")

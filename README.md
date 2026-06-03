@@ -32,6 +32,8 @@ For time-window totals, the app reads each session's `last_token_usage.total_tok
 
 If no session `token_count` event is available, rolling totals stay at zero instead of falling back to inaccurate thread `updated_at` buckets. The all-time total still comes from Codex's local state database.
 
+The menu shows the number of session files and `token_count` events behind the current snapshot. If any session file cannot be read, or if a future/older Codex log omits exact `last_token_usage` fields, the widget marks the source as partial and the menu explains the degraded accuracy condition.
+
 ## Requirements
 
 - macOS 14 or newer

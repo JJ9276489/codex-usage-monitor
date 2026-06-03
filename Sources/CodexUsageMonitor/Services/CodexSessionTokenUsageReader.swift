@@ -1,6 +1,10 @@
 import Foundation
 
 struct CodexSessionUsageSummary: Equatable {
+    let sessionFileCount: Int
+    let failedSessionFileCount: Int
+    let tokenCountEventCount: Int
+    let missingLastUsageEventCount: Int
     let tokensLast5Hours: Int64
     let tokensToday: Int64
     let tokensLast7Days: Int64
@@ -32,14 +36,24 @@ actor CodexSessionTokenUsageReader {
         var tokensLast30Days: Int64 = 0
         var tokensAllTime: Int64 = 0
         var latestLimitStatus: CodexLimitStatus?
+        var failedSessionFileCount = 0
+        var tokenCountEventCount = 0
+        var missingLastUsageEventCount = 0
 
         let activePaths = Set(candidateFileURLs.map(\.path))
         cache = cache.filter { activePaths.contains($0.key) }
 
         for fileURL in candidateFileURLs {
-            guard let usage = try? usage(for: fileURL) else {
+            let usage: ParsedFileUsage
+            do {
+                usage = try self.usage(for: fileURL)
+            } catch {
+                failedSessionFileCount += 1
                 continue
             }
+
+            tokenCountEventCount += usage.tokenCountEventCount
+            missingLastUsageEventCount += usage.missingLastUsageEventCount
 
             for event in usage.events {
                 tokensAllTime += event.increment
@@ -64,6 +78,10 @@ actor CodexSessionTokenUsageReader {
         }
 
         return CodexSessionUsageSummary(
+            sessionFileCount: candidateFileURLs.count,
+            failedSessionFileCount: failedSessionFileCount,
+            tokenCountEventCount: tokenCountEventCount,
+            missingLastUsageEventCount: missingLastUsageEventCount,
             tokensLast5Hours: tokensLast5Hours,
             tokensToday: tokensToday,
             tokensLast7Days: tokensLast7Days,
@@ -126,16 +144,27 @@ actor CodexSessionTokenUsageReader {
     private func parseFileUsage(_ fileURL: URL) throws -> ParsedFileUsage {
         let data = try Data(contentsOf: fileURL, options: [.mappedIfSafe])
         guard let text = String(data: data, encoding: .utf8) else {
-            return ParsedFileUsage(events: [], latestLimitStatus: nil)
+            return ParsedFileUsage(
+                events: [],
+                tokenCountEventCount: 0,
+                missingLastUsageEventCount: 0,
+                latestLimitStatus: nil
+            )
         }
 
         var events: [TokenIncrement] = []
         var previousTotal: Int64?
+        var tokenCountEventCount = 0
+        var missingLastUsageEventCount = 0
         var latestLimitStatus: CodexLimitStatus?
 
         text.enumerateLines { [self] line, _ in
             guard let record = self.tokenCountRecord(from: line) else {
                 return
+            }
+            tokenCountEventCount += 1
+            if record.lastTokens == nil {
+                missingLastUsageEventCount += 1
             }
 
             let increment: Int64
@@ -163,7 +192,12 @@ actor CodexSessionTokenUsageReader {
             }
         }
 
-        return ParsedFileUsage(events: events, latestLimitStatus: latestLimitStatus)
+        return ParsedFileUsage(
+            events: events,
+            tokenCountEventCount: tokenCountEventCount,
+            missingLastUsageEventCount: missingLastUsageEventCount,
+            latestLimitStatus: latestLimitStatus
+        )
     }
 
     private func tokenCountRecord(from line: String) -> TokenCountRecord? {
@@ -322,6 +356,8 @@ private struct TokenIncrement {
 
 private struct ParsedFileUsage {
     let events: [TokenIncrement]
+    let tokenCountEventCount: Int
+    let missingLastUsageEventCount: Int
     let latestLimitStatus: CodexLimitStatus?
 }
 

@@ -26,12 +26,13 @@ struct TestSwiftUsageReader {
         let active = sessions.appendingPathComponent("rollout-active.jsonl")
         let archivedSession = archived.appendingPathComponent("rollout-archived.jsonl")
         let filesystemOnly = sessions.appendingPathComponent("rollout-filesystem-only.jsonl")
+        let missing = sessions.appendingPathComponent("missing.jsonl")
 
         try writeLines(
             [
                 tokenCountLine(today7, totalTokens: 50_100, lastTokens: 100),
                 tokenCountLine(today9, totalTokens: 50_180, lastTokens: 80),
-                tokenCountLine(today9.addingTimeInterval(1_800), totalTokens: 50_180, lastTokens: 80),
+                tokenCountLine(today9.addingTimeInterval(1_800), totalTokens: 50_180, includeLastUsage: false),
                 tokenCountLine(
                     today10,
                     totalTokens: 50_250,
@@ -60,8 +61,12 @@ struct TestSwiftUsageReader {
         )
 
         let reader = CodexSessionTokenUsageReader(codexHomeURL: codexHome)
-        let summary = try await reader.loadSummary(now: now, fileURLs: [active, archivedSession])
+        let summary = try await reader.loadSummary(now: now, fileURLs: [active, archivedSession, missing])
 
+        try assertEqual(summary.sessionFileCount, 4, "sessionFileCount")
+        try assertEqual(summary.failedSessionFileCount, 1, "failedSessionFileCount")
+        try assertEqual(summary.tokenCountEventCount, 9, "tokenCountEventCount")
+        try assertEqual(summary.missingLastUsageEventCount, 1, "missingLastUsageEventCount")
         try assertEqual(summary.tokensLast5Hours, 250, "tokensLast5Hours")
         try assertEqual(summary.tokensToday, 250, "tokensToday")
         try assertEqual(summary.tokensLast7Days, 1_850, "tokensLast7Days")
@@ -98,22 +103,27 @@ struct TestSwiftUsageReader {
         lastTokens: Int? = nil,
         primary: [String: Double]? = nil,
         secondary: [String: Double]? = nil,
-        fractional: Bool = true
+        fractional: Bool = true,
+        includeLastUsage: Bool = true
     ) -> String {
         let lastTokens = lastTokens ?? totalTokens
+        var info: [String: Any] = [
+            "total_token_usage": [
+                "total_tokens": totalTokens,
+            ],
+        ]
+        if includeLastUsage {
+            info["last_token_usage"] = [
+                "total_tokens": lastTokens,
+            ]
+        }
+
         var payload: [String: Any] = [
             "type": "event_msg",
             "timestamp": iso(timestamp, fractional: fractional),
             "payload": [
                 "type": "token_count",
-                "info": [
-                    "total_token_usage": [
-                        "total_tokens": totalTokens,
-                    ],
-                    "last_token_usage": [
-                        "total_tokens": lastTokens,
-                    ],
-                ],
+                "info": info,
             ],
         ]
 

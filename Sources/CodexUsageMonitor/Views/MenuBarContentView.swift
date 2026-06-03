@@ -44,13 +44,26 @@ struct MenuBarContentView: View {
     }
 
     private var quotaNotice: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "info.circle")
-                .foregroundStyle(.secondary)
-            Text("Rolling token totals come from local Codex token_count events. Limit percentages come from the latest token_count rate_limits payload when it has not expired.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                Text("Rolling token totals come from local Codex token_count events. Limit percentages come from the latest token_count rate_limits payload when it has not expired.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let warning = store.snapshot.warning {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.yellow)
+                    Text(warning)
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
         .padding(10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -64,6 +77,8 @@ struct MenuBarContentView: View {
             MetricRow(label: "Last 30 days", value: UsageFormat.decimal(store.snapshot.tokensLast30Days))
             MetricRow(label: "All time", value: UsageFormat.decimal(store.snapshot.tokensAllTime))
             MetricRow(label: "Threads", value: "\(store.snapshot.threadCount)")
+            MetricRow(label: "Session files", value: "\(store.snapshot.sessionFileCount)")
+            MetricRow(label: "token_count events", value: UsageFormat.decimal(Int64(store.snapshot.tokenCountEventCount)))
             if let status = store.snapshot.limitStatus {
                 MetricRow(label: "\(status.primaryWindowLabel) limit", value: status.primaryUsedLabel(now: store.snapshot.generatedAt))
                 MetricRow(label: "\(status.secondaryWindowLabel) limit", value: secondaryUsedLabel(status))
@@ -84,11 +99,6 @@ struct MenuBarContentView: View {
                     RecentThreadRow(thread: thread)
                 }
             }
-        } else if let warning = store.snapshot.warning {
-            Text(warning)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

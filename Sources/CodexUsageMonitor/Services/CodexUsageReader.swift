@@ -35,12 +35,17 @@ struct CodexUsageReader {
 
         let totals = try readTotals(handle: handle)
         let recentThreads = try readRecentThreads(handle: handle)
+        let warning = Self.warning(for: sessionUsage)
 
         return CodexUsageSnapshot(
             generatedAt: now,
             databasePath: databaseURL.path,
             databaseAvailable: true,
             threadCount: totals.threadCount,
+            sessionFileCount: sessionUsage?.sessionFileCount ?? 0,
+            failedSessionFileCount: sessionUsage?.failedSessionFileCount ?? 0,
+            tokenCountEventCount: sessionUsage?.tokenCountEventCount ?? 0,
+            missingLastUsageEventCount: sessionUsage?.missingLastUsageEventCount ?? 0,
             tokensLast5Hours: sessionUsage?.tokensLast5Hours ?? 0,
             tokensToday: sessionUsage?.tokensToday ?? 0,
             tokensLast7Days: sessionUsage?.tokensLast7Days ?? 0,
@@ -48,7 +53,7 @@ struct CodexUsageReader {
             tokensAllTime: totals.tokensAllTime,
             limitStatus: limitStatus,
             recentThreads: recentThreads,
-            warning: sessionUsage == nil ? "No session token_count events were available for rolling totals." : nil
+            warning: warning
         )
     }
 
@@ -175,6 +180,30 @@ struct CodexUsageReader {
             return ""
         }
         return String(cString: value)
+    }
+
+    private static func warning(for sessionUsage: CodexSessionUsageSummary?) -> String? {
+        guard let sessionUsage else {
+            return "No session token_count events were available for rolling totals."
+        }
+
+        if sessionUsage.sessionFileCount == 0 {
+            return "No Codex session JSONL files were found. Rolling token totals are unavailable."
+        }
+
+        if sessionUsage.tokenCountEventCount == 0 {
+            return "No token_count events were found in local Codex session files. Rolling token totals are unavailable."
+        }
+
+        var messages: [String] = []
+        if sessionUsage.failedSessionFileCount > 0 {
+            messages.append("\(sessionUsage.failedSessionFileCount) session file(s) could not be read, so rolling totals may be low.")
+        }
+        if sessionUsage.missingLastUsageEventCount > 0 {
+            messages.append("\(sessionUsage.missingLastUsageEventCount) token_count event(s) lacked last_token_usage; fallback deltas were used where possible.")
+        }
+
+        return messages.isEmpty ? nil : messages.joined(separator: " ")
     }
 }
 

@@ -137,6 +137,7 @@ def token_count_events(path):
                 "timestamp": observed_at,
                 "increment": increment,
                 "rate_limits": payload.get("rate_limits"),
+                "missing_last_usage": last_tokens is None,
             }
 
 
@@ -161,36 +162,45 @@ def audit(codex_home, database_path, now=None):
     }
     latest_limit = None
     event_count = 0
+    missing_last_usage_event_count = 0
+    failed_session_file_count = 0
 
     for path in paths:
-        for event in token_count_events(path):
-            event_count += 1
-            observed_at = event["timestamp"]
-            increment = event["increment"]
-            if increment:
-                if observed_at >= five_hours_ago:
-                    totals["tokens_last_5_hours"] += increment
-                if observed_at >= today_start:
-                    totals["tokens_today"] += increment
-                if observed_at >= seven_days_ago:
-                    totals["tokens_last_7_days"] += increment
-                if observed_at >= thirty_days_ago:
-                    totals["tokens_last_30_days"] += increment
+        try:
+            for event in token_count_events(path):
+                event_count += 1
+                if event["missing_last_usage"]:
+                    missing_last_usage_event_count += 1
+                observed_at = event["timestamp"]
+                increment = event["increment"]
+                if increment:
+                    if observed_at >= five_hours_ago:
+                        totals["tokens_last_5_hours"] += increment
+                    if observed_at >= today_start:
+                        totals["tokens_today"] += increment
+                    if observed_at >= seven_days_ago:
+                        totals["tokens_last_7_days"] += increment
+                    if observed_at >= thirty_days_ago:
+                        totals["tokens_last_30_days"] += increment
 
-            if event["rate_limits"] and (
-                latest_limit is None or observed_at > latest_limit["observed_at_epoch"]
-            ):
-                latest_limit = {
-                    "observed_at_epoch": observed_at,
-                    "observed_at": datetime.fromtimestamp(observed_at).isoformat(timespec="seconds"),
-                    "rate_limits": event["rate_limits"],
-                }
+                if event["rate_limits"] and (
+                    latest_limit is None or observed_at > latest_limit["observed_at_epoch"]
+                ):
+                    latest_limit = {
+                        "observed_at_epoch": observed_at,
+                        "observed_at": datetime.fromtimestamp(observed_at).isoformat(timespec="seconds"),
+                        "rate_limits": event["rate_limits"],
+                    }
+        except OSError:
+            failed_session_file_count += 1
 
     return {
         "codex_home": str(codex_home),
         "database_path": str(database_path),
         "session_file_count": len(paths),
+        "failed_session_file_count": failed_session_file_count,
         "token_count_event_count": event_count,
+        "missing_last_usage_event_count": missing_last_usage_event_count,
         **totals,
         "tokens_all_time_db": all_time,
         "latest_limit": latest_limit,
@@ -222,7 +232,11 @@ def main():
     print(f"Codex home: {result['codex_home']}")
     print(f"Usage DB: {result['database_path']}")
     print(f"Session files: {result['session_file_count']}")
+    if result["failed_session_file_count"]:
+        print(f"failed session files: {result['failed_session_file_count']}")
     print(f"token_count events: {result['token_count_event_count']}")
+    if result["missing_last_usage_event_count"]:
+        print(f"missing last_token_usage events: {result['missing_last_usage_event_count']}")
     print(f"5h: {compact(result['tokens_last_5_hours'])}")
     print(f"today: {compact(result['tokens_today'])}")
     print(f"7d: {compact(result['tokens_last_7_days'])}")

@@ -5,6 +5,10 @@ struct CodexUsageSnapshot: Equatable {
     let databasePath: String
     let databaseAvailable: Bool
     let threadCount: Int
+    let sessionFileCount: Int
+    let failedSessionFileCount: Int
+    let tokenCountEventCount: Int
+    let missingLastUsageEventCount: Int
     let tokensLast5Hours: Int64
     let tokensToday: Int64
     let tokensLast7Days: Int64
@@ -24,6 +28,10 @@ struct CodexUsageSnapshot: Equatable {
             databasePath: databasePath,
             databaseAvailable: false,
             threadCount: 0,
+            sessionFileCount: 0,
+            failedSessionFileCount: 0,
+            tokenCountEventCount: 0,
+            missingLastUsageEventCount: 0,
             tokensLast5Hours: 0,
             tokensToday: 0,
             tokensLast7Days: 0,

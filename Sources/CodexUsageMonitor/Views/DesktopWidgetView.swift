@@ -235,6 +235,9 @@ struct DesktopWidgetView: View {
     }
 
     private var sourceLabel: String {
+        if snapshot.warning != nil {
+            return "PARTIAL LOCAL"
+        }
         guard let status = snapshot.limitStatus else {
             return "LOCAL TOKENS"
         }
