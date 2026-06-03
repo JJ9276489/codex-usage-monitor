@@ -39,9 +39,20 @@ Useful modes:
 ./script/build_and_run.sh --verify
 ./script/build_and_run.sh --logs
 ./script/build_and_run.sh --debug
+./script/build_and_run.sh --build-only
 ```
 
-If SwiftPM fails before compiling source with a PackageDescription or SDK mismatch, update or reinstall Xcode Command Line Tools, or install full Xcode and select it:
+## Install At Login
+
+```bash
+./script/install_login_item.sh
+```
+
+This builds the app, copies it to `~/Applications/CodexUsageMonitor.app`, and registers a user LaunchAgent so it opens when you log in.
+
+If SwiftPM fails before compiling source with a PackageDescription or SDK mismatch, the run script automatically falls back to direct `swiftc` compilation.
+
+For a long-term SwiftPM fix, update or reinstall Xcode Command Line Tools, or install full Xcode and select it:
 
 ```bash
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer

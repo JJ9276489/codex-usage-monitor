@@ -16,8 +16,37 @@ INFO_PLIST="$APP_CONTENTS/Info.plist"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
-swift build
-BUILD_BINARY="$(swift build --show-bin-path)/$APP_NAME"
+build_with_swiftpm() {
+  local log_file="$ROOT_DIR/.build/swiftpm-build.log"
+  mkdir -p "$(dirname "$log_file")"
+  swift build >"$log_file" 2>&1 || return 1
+  BUILD_BINARY="$(swift build --show-bin-path 2>>"$log_file")/$APP_NAME"
+  test -x "$BUILD_BINARY"
+}
+
+build_with_swiftc() {
+  local manual_dir="$ROOT_DIR/.build/manual"
+  mkdir -p "$manual_dir"
+  local swift_files=()
+  while IFS= read -r -d '' file; do
+    swift_files+=("$file")
+  done < <(find "$ROOT_DIR/Sources/CodexUsageMonitor" -name '*.swift' -print0 | sort -z)
+
+  # Fallback for machines where SwiftPM's PackageDescription toolchain is broken.
+  swiftc -parse-as-library \
+    "${swift_files[@]}" \
+    -o "$manual_dir/$APP_NAME" \
+    -framework SwiftUI \
+    -framework AppKit \
+    -framework Combine \
+    -lsqlite3
+  BUILD_BINARY="$manual_dir/$APP_NAME"
+}
+
+if ! build_with_swiftpm; then
+  echo "SwiftPM build failed; falling back to direct swiftc build. Details: .build/swiftpm-build.log" >&2
+  build_with_swiftc
+fi
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS"
@@ -71,8 +100,10 @@ case "$MODE" in
     sleep 1
     pgrep -x "$APP_NAME" >/dev/null
     ;;
+  --build-only|build)
+    ;;
   *)
-    echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
+    echo "usage: $0 [run|--debug|--logs|--telemetry|--verify|--build-only]" >&2
     exit 2
     ;;
 esac
