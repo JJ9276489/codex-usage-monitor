@@ -140,9 +140,16 @@ actor CodexSessionTokenUsageReader {
 
             let increment: Int64
             if let previousTotal {
-                increment = max(record.totalTokens - previousTotal, 0)
+                let delta = record.totalTokens - previousTotal
+                if delta > 0 {
+                    increment = delta
+                } else if delta < 0 {
+                    increment = record.lastTokens ?? max(record.totalTokens, 0)
+                } else {
+                    increment = 0
+                }
             } else {
-                increment = record.totalTokens
+                increment = record.lastTokens ?? record.totalTokens
             }
             previousTotal = record.totalTokens
 
@@ -178,10 +185,12 @@ actor CodexSessionTokenUsageReader {
         else {
             return nil
         }
+        let lastUsage = info["last_token_usage"] as? [String: Any]
 
         return TokenCountRecord(
             timestamp: timestamp,
             totalTokens: totalTokens,
+            lastTokens: int64Value(lastUsage?["total_tokens"]),
             limitStatus: limitStatus(from: payload["rate_limits"], observedAt: timestamp)
         )
     }
@@ -302,6 +311,7 @@ actor CodexSessionTokenUsageReader {
 private struct TokenCountRecord {
     let timestamp: Date
     let totalTokens: Int64
+    let lastTokens: Int64?
     let limitStatus: CodexLimitStatus?
 }
 
@@ -330,8 +340,11 @@ private extension Array where Element == URL {
         var seen: Set<String> = []
         var urls: [URL] = []
 
-        for url in self where seen.insert(url.path).inserted {
-            urls.append(url)
+        for url in self {
+            let normalizedURL = url.standardizedFileURL.resolvingSymlinksInPath()
+            if seen.insert(normalizedURL.path).inserted {
+                urls.append(normalizedURL)
+            }
         }
 
         return urls.sorted { $0.path < $1.path }

@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  macos:
+    name: macOS Checks
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Run audit fixture
+        run: ./script/test_usage_accuracy.py
+
+      - name: Run Swift reader fixture
+        run: ./script/test_swift_usage_reader.sh
+
+      - name: Build app bundle
+        run: ./script/build_and_run.sh --build-only

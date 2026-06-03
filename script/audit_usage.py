@@ -16,6 +16,12 @@ def parse_args():
     parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     parser.add_argument("--codex-home", default=os.environ.get("CODEX_HOME"))
     parser.add_argument("--usage-db", default=os.environ.get("CODEX_USAGE_DB"))
+    parser.add_argument(
+        "--now-epoch",
+        type=float,
+        default=None,
+        help="override the current epoch time, primarily for deterministic tests",
+    )
     return parser.parse_args()
 
 
@@ -25,6 +31,13 @@ def timestamp(value):
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
     except ValueError:
+        return None
+
+
+def int_value(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
         return None
 
 
@@ -99,14 +112,25 @@ def token_count_events(path):
             total_tokens = (
                 ((payload.get("info") or {}).get("total_token_usage") or {}).get("total_tokens")
             )
+            last_tokens = (
+                ((payload.get("info") or {}).get("last_token_usage") or {}).get("total_tokens")
+            )
+            total_tokens = int_value(total_tokens)
+            last_tokens = int_value(last_tokens)
             if observed_at is None or total_tokens is None:
                 continue
 
-            total_tokens = int(total_tokens)
             if previous_total is None:
-                increment = total_tokens
+                increment = last_tokens if last_tokens is not None else total_tokens
             else:
-                increment = max(total_tokens - previous_total, 0)
+                delta = total_tokens - previous_total
+                if delta > 0:
+                    increment = delta
+                elif delta < 0:
+                    increment = last_tokens if last_tokens is not None else total_tokens
+                else:
+                    increment = 0
+            increment = max(increment, 0)
             previous_total = total_tokens
 
             yield {
@@ -116,9 +140,11 @@ def token_count_events(path):
             }
 
 
-def audit(codex_home, database_path):
-    now = time.time()
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+def audit(codex_home, database_path, now=None):
+    now = time.time() if now is None else now
+    today_start = datetime.fromtimestamp(now).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).timestamp()
     five_hours_ago = now - (5 * 60 * 60)
     seven_days_ago = now - (7 * 24 * 60 * 60)
     thirty_days_ago = now - (30 * 24 * 60 * 60)
@@ -187,7 +213,7 @@ def main():
     args = parse_args()
     codex_home = Path(args.codex_home or Path.home() / ".codex").expanduser()
     database_path = Path(args.usage_db).expanduser() if args.usage_db else codex_home / "state_5.sqlite"
-    result = audit(codex_home, database_path)
+    result = audit(codex_home, database_path, now=args.now_epoch)
 
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))

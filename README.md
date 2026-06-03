@@ -28,7 +28,7 @@ The first version runs as a menu bar app and opens a desktop-layer widget window
 
 Codex writes `token_count` events into local session JSONL files. This app uses those events as its primary source for token totals and rate-limit percentages.
 
-For time-window totals, the app computes positive deltas between consecutive cumulative `total_token_usage.total_tokens` values per session. That avoids the inaccurate older approach of grouping whole thread totals by `updated_at`.
+For time-window totals, the app reads each session's `last_token_usage.total_tokens` for the first observed `token_count` event, then computes positive deltas between consecutive cumulative `total_token_usage.total_tokens` values in the same session. That avoids double-counting repeated rate-limit-only records, and it avoids counting an old reopened thread's cumulative total as fresh usage.
 
 If no session `token_count` event is available, rolling totals stay at zero instead of falling back to inaccurate thread `updated_at` buckets. The all-time total still comes from Codex's local state database.
 
@@ -75,7 +75,17 @@ To verify the widget against raw local Codex data:
 ./script/audit_usage.py --json
 ```
 
-The audit script uses the same source-of-truth model as the app: positive deltas between per-session cumulative `total_token_usage.total_tokens` values, plus all-time totals from `state_5.sqlite`.
+The audit script uses the same source-of-truth model as the app: per-event `last_token_usage` for the first observation in a session, positive cumulative deltas after that, plus all-time totals from `state_5.sqlite`.
+
+## Checks
+
+Run the token accounting fixtures and build check before publishing changes:
+
+```bash
+./script/test_usage_accuracy.py
+./script/test_swift_usage_reader.sh
+./script/build_and_run.sh --build-only
+```
 
 ## Install At Login
 
