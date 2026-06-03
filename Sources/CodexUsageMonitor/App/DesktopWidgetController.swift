@@ -15,7 +15,7 @@ final class DesktopWidgetController: ObservableObject {
             return
         }
 
-        let panelSize = NSSize(width: 372, height: 246)
+        let panelSize = NSSize(width: 372, height: 282)
         let panel = NSPanel(
             contentRect: NSRect(origin: .zero, size: panelSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -24,13 +24,13 @@ final class DesktopWidgetController: ObservableObject {
         )
 
         panel.backgroundColor = .clear
-        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = true
         panel.isOpaque = false
         panel.isReleasedWhenClosed = false
-        panel.level = .floating
+        panel.level = Self.desktopWidgetLevel
 
         panel.contentViewController = NSHostingController(
             rootView: DesktopWidgetView(
@@ -76,5 +76,9 @@ final class DesktopWidgetController: ObservableObject {
         let x = frame.maxX - panel.frame.width - margin
         let y = frame.maxY - panel.frame.height - margin
         panel.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    private static var desktopWidgetLevel: NSWindow.Level {
+        NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
     }
 }

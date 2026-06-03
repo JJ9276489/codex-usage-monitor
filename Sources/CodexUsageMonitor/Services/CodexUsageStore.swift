@@ -28,6 +28,10 @@ final class CodexUsageStore: ObservableObject {
         Self.defaultDatabaseURL()
     }
 
+    var logsDatabaseURL: URL {
+        Self.defaultLogsDatabaseURL()
+    }
+
     func startAutoRefresh() {
         guard refreshTimer == nil else {
             return
@@ -40,13 +44,16 @@ final class CodexUsageStore: ObservableObject {
     }
 
     func refresh() {
+        let limitStatus = try? CodexLimitStatusReader(databaseURL: logsDatabaseURL).loadLatest()
+
         do {
-            snapshot = try CodexUsageReader(databaseURL: databaseURL).loadSnapshot()
+            snapshot = try CodexUsageReader(databaseURL: databaseURL).loadSnapshot(limitStatus: limitStatus)
             lastError = nil
         } catch {
             snapshot = .unavailable(
                 databasePath: databaseURL.path,
-                warning: error.localizedDescription
+                warning: error.localizedDescription,
+                limitStatus: limitStatus
             )
             lastError = error.localizedDescription
         }
@@ -60,5 +67,15 @@ final class CodexUsageStore: ObservableObject {
         return FileManager.default
             .homeDirectoryForCurrentUser
             .appendingPathComponent(".codex/state_5.sqlite")
+    }
+
+    private static func defaultLogsDatabaseURL() -> URL {
+        if let override = ProcessInfo.processInfo.environment["CODEX_LOGS_DB"], !override.isEmpty {
+            return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
+        }
+
+        return FileManager.default
+            .homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex/logs_2.sqlite")
     }
 }

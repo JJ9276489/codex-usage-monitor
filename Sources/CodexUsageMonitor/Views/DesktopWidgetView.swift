@@ -24,13 +24,14 @@ struct DesktopWidgetView: View {
             VStack(alignment: .leading, spacing: 12) {
                 topRail
                 mainReadout
+                limitBar
                 loadBar
                 lowerGrid
                 footer
             }
             .padding(14)
         }
-        .frame(width: 372, height: 246)
+        .frame(width: 372, height: 282)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(Color.white)
@@ -112,6 +113,39 @@ struct DesktopWidgetView: View {
         }
     }
 
+    private var limitBar: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(limitWindowLabel)
+                Spacer()
+                Text(limitPercentLabel)
+            }
+            .font(.system(size: 10, weight: .heavy, design: .monospaced))
+            .foregroundStyle(.white)
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.14))
+                    Rectangle()
+                        .fill(limitColor)
+                        .frame(width: proxy.size.width * limitRatio)
+                    Rectangle()
+                        .stroke(Color.white, lineWidth: 1)
+                }
+            }
+            .frame(height: 14)
+
+            HStack {
+                Text(limitResetLabel)
+                Spacer()
+                Text(limitObservedLabel)
+            }
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .foregroundStyle(.gray)
+        }
+    }
+
     private var lowerGrid: some View {
         HStack(spacing: 8) {
             BrutalistMetric(label: "7D", value: UsageFormat.compactTokens(snapshot.tokensLast7Days))
@@ -122,14 +156,14 @@ struct DesktopWidgetView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
-            Text("REMAINING")
+            Text("SOURCE")
                 .font(.system(size: 10, weight: .black, design: .monospaced))
                 .foregroundStyle(.black)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(Color.yellow)
 
-            Text("/STATUS ONLY")
+            Text(sourceLabel)
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(.white)
 
@@ -139,6 +173,52 @@ struct DesktopWidgetView: View {
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(.gray)
         }
+    }
+
+    private var limitWindowLabel: String {
+        "\(snapshot.limitStatus?.primaryWindowLabel ?? "5H") LIMIT"
+    }
+
+    private var limitPercentLabel: String {
+        snapshot.limitStatus?.primaryUsedLabel ?? "NO LIMIT EVENT"
+    }
+
+    private var limitResetLabel: String {
+        snapshot.limitStatus?.resetLabel ?? "RESET UNKNOWN"
+    }
+
+    private var limitObservedLabel: String {
+        guard let observedAt = snapshot.limitStatus?.observedAt else {
+            return "NO HEADER"
+        }
+        return "SEEN \(UsageFormat.timestamp(observedAt))"
+    }
+
+    private var sourceLabel: String {
+        guard let status = snapshot.limitStatus else {
+            return "LOCAL TOKENS"
+        }
+        return "\(status.planType.uppercased()) / \(status.activeLimit.uppercased())"
+    }
+
+    private var limitRatio: Double {
+        guard let value = snapshot.limitStatus?.primaryUsedPercent else {
+            return 0
+        }
+        return min(max(Double(value) / 100, 0), 1)
+    }
+
+    private var limitColor: Color {
+        guard let value = snapshot.limitStatus?.primaryUsedPercent else {
+            return .gray
+        }
+        if value >= 95 {
+            return .red
+        }
+        if value >= 75 {
+            return .yellow
+        }
+        return .green
     }
 }
 

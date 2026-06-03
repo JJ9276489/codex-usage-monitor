@@ -7,17 +7,20 @@ The app reads Codex's local state database at `~/.codex/state_5.sqlite` and show
 - tokens used today
 - tokens used in the last 7 and 30 days
 - all-time local token totals
+- latest observed 5-hour Codex limit headers, when Codex has logged a limit event
 - recent Codex threads and their token counts
 
 It does **not** read `auth.json`, access tokens, or OpenAI credentials.
 
-The first version runs as a menu bar app and opens a persistent floating desktop-style widget. It is intentionally stark: black panel, hard borders, monospaced type, high-contrast status tags, and no soft chrome. It is a desktop-style widget window, not a WidgetKit extension yet.
+The first version runs as a menu bar app and opens a desktop-layer widget window. It is intentionally stark: black panel, hard borders, monospaced type, high-contrast status tags, and no soft chrome. It is a desktop-style widget window, not a WidgetKit extension yet.
 
 ## Current Limitation
 
 Codex exposes live context and rate-limit information through the interactive `/status` command, but this project does not currently have a stable machine-readable source for exact remaining ChatGPT/Codex quota. Until OpenAI exposes that as an API or local status feed, this app treats "remaining quota" as unavailable rather than guessing.
 
 Business and Enterprise users may have access to Codex analytics APIs, but those are workspace analytics surfaces and can lag. They are not the same as a live personal remaining-limit meter.
+
+When Codex logs a rate-limit event, the app reads the latest `X-Codex-Primary-*` headers from `~/.codex/logs_2.sqlite` and shows the 5-hour window, used percent, and reset time. If no limit event has been logged yet, that section stays marked as unavailable.
 
 ## Requirements
 

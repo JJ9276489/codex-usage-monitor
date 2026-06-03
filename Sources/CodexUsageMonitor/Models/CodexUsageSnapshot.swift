@@ -9,10 +9,15 @@ struct CodexUsageSnapshot: Equatable {
     let tokensLast7Days: Int64
     let tokensLast30Days: Int64
     let tokensAllTime: Int64
+    let limitStatus: CodexLimitStatus?
     let recentThreads: [CodexThreadUsage]
     let warning: String?
 
-    static func unavailable(databasePath: String, warning: String) -> CodexUsageSnapshot {
+    static func unavailable(
+        databasePath: String,
+        warning: String,
+        limitStatus: CodexLimitStatus? = nil
+    ) -> CodexUsageSnapshot {
         CodexUsageSnapshot(
             generatedAt: Date(),
             databasePath: databasePath,
@@ -22,6 +27,7 @@ struct CodexUsageSnapshot: Equatable {
             tokensLast7Days: 0,
             tokensLast30Days: 0,
             tokensAllTime: 0,
+            limitStatus: limitStatus,
             recentThreads: [],
             warning: warning
         )

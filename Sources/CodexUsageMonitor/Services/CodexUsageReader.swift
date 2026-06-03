@@ -4,11 +4,12 @@ import SQLite3
 struct CodexUsageReader {
     let databaseURL: URL
 
-    func loadSnapshot(now: Date = Date()) throws -> CodexUsageSnapshot {
+    func loadSnapshot(now: Date = Date(), limitStatus: CodexLimitStatus? = nil) throws -> CodexUsageSnapshot {
         guard FileManager.default.fileExists(atPath: databaseURL.path) else {
             return .unavailable(
                 databasePath: databaseURL.path,
-                warning: "No Codex state database found at the configured path."
+                warning: "No Codex state database found at the configured path.",
+                limitStatus: limitStatus
             )
         }
 
@@ -50,6 +51,7 @@ struct CodexUsageReader {
             tokensLast7Days: totals.tokensLast7Days,
             tokensLast30Days: totals.tokensLast30Days,
             tokensAllTime: totals.tokensAllTime,
+            limitStatus: limitStatus,
             recentThreads: recentThreads,
             warning: nil
         )
