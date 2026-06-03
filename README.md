@@ -2,29 +2,33 @@
 
 A brutalist macOS desktop widget prototype for viewing local Codex token usage.
 
-The app reads Codex's local state database at `~/.codex/state_5.sqlite` and shows:
+The app reads Codex's local session logs and state database:
+
+- `~/.codex/sessions/**/*.jsonl`
+- `~/.codex/archived_sessions/*.jsonl`
+- `~/.codex/state_5.sqlite`
+
+It shows:
 
 - tokens used today
-- local tokens from threads updated in the last 5 hours
+- tokens used in the last 5 hours
 - tokens used in the last 7 and 30 days
 - all-time local token totals
-- latest observed 5-hour Codex limit headers, when Codex has logged a limit event
+- latest observed 5-hour and 7-day Codex rate-limit usage, when Codex has logged a token count event
 - recent Codex threads and their token counts
 - manual refresh from the desktop widget or menu bar
 
 It does **not** read `auth.json`, access tokens, or OpenAI credentials.
 
-The first version runs as a menu bar app and opens a desktop-layer widget window. It is intentionally stark: dark material, monospaced type, high-contrast status tags, and compact metrics. It snaps its saved position to a small grid and refreshes local data every 15 seconds, but it is still a desktop-style widget window, not a WidgetKit extension yet.
+The first version runs as a menu bar app and opens a desktop-layer widget window. It is intentionally stark: dark material, monospaced type, high-contrast status tags, and compact metrics. It snaps its saved position to a small grid and refreshes local data every 5 seconds, but it is still a desktop-style widget window, not a WidgetKit extension yet.
 
-## Current Limitation
+## Usage Accuracy
 
-Codex exposes live context and rate-limit information through the interactive `/status` command, but this project does not currently have a stable machine-readable source for exact remaining ChatGPT/Codex quota. Until OpenAI exposes that as an API or local status feed, this app treats "remaining quota" as unavailable rather than guessing.
+Codex writes `token_count` events into local session JSONL files. This app uses those events as its primary source for token totals and rate-limit percentages.
 
-Business and Enterprise users may have access to Codex analytics APIs, but those are workspace analytics surfaces and can lag. They are not the same as a live personal remaining-limit meter.
+For time-window totals, the app computes positive deltas between consecutive cumulative `total_token_usage.total_tokens` values per session. That avoids the inaccurate older approach of grouping whole thread totals by `updated_at`.
 
-When Codex logs a rate-limit event, the app reads the latest `X-Codex-Primary-*` headers from `~/.codex/logs_2.sqlite` and shows the 5-hour window, used percent, and reset time. If the reset time has already passed, the widget treats that header as inactive old data instead of showing a red "limit hit" state.
-
-During normal successful Codex use, the local logs currently do not include live `X-Codex-Primary-Used-Percent` headers. In that case the widget shows local rolling-5-hour token activity instead of pretending it knows the live server-side limit percentage.
+If no session `token_count` event is available, the app falls back to older local state and API-header sources, but normal Codex Desktop usage should provide token-count records.
 
 ## Requirements
 
@@ -73,9 +77,15 @@ Set `CODEX_USAGE_DB` before launch:
 CODEX_USAGE_DB=/path/to/state_5.sqlite ./script/build_and_run.sh
 ```
 
+Set `CODEX_HOME` to read a different Codex home folder:
+
+```bash
+CODEX_HOME=/path/to/.codex ./script/build_and_run.sh
+```
+
 ## Privacy
 
-The app reads only the local `threads` table fields needed for usage totals:
+The app reads local session `token_count` events for numeric usage. It also reads these `threads` table fields for recent-thread labels:
 
 - thread id
 - title
@@ -84,7 +94,7 @@ The app reads only the local `threads` table fields needed for usage totals:
 - `tokens_used`
 - `updated_at`
 
-Thread titles may appear in the menu UI. Do not publish screenshots if your thread titles include private information.
+Thread titles may appear in the menu UI. Session JSONL files can contain conversation/tool content, but the app only parses `token_count` event fields. Do not publish screenshots if your thread titles include private information.
 
 ## Roadmap
 

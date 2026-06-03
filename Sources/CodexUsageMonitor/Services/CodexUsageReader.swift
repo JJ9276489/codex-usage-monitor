@@ -4,7 +4,11 @@ import SQLite3
 struct CodexUsageReader {
     let databaseURL: URL
 
-    func loadSnapshot(now: Date = Date(), limitStatus: CodexLimitStatus? = nil) throws -> CodexUsageSnapshot {
+    func loadSnapshot(
+        now: Date = Date(),
+        sessionUsage: CodexSessionUsageSummary? = nil,
+        limitStatus: CodexLimitStatus? = nil
+    ) throws -> CodexUsageSnapshot {
         guard FileManager.default.fileExists(atPath: databaseURL.path) else {
             return .unavailable(
                 databasePath: databaseURL.path,
@@ -29,19 +33,7 @@ struct CodexUsageReader {
 
         sqlite3_busy_timeout(handle, 500)
 
-        let calendar = Calendar.autoupdatingCurrent
-        let todayStart = calendar.startOfDay(for: now)
-        let fiveHoursAgo = calendar.date(byAdding: .hour, value: -5, to: now) ?? now
-        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
-        let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) ?? now
-
-        let totals = try readTotals(
-            handle: handle,
-            fiveHoursAgo: Int64(fiveHoursAgo.timeIntervalSince1970),
-            todayStart: Int64(todayStart.timeIntervalSince1970),
-            sevenDaysAgo: Int64(sevenDaysAgo.timeIntervalSince1970),
-            thirtyDaysAgo: Int64(thirtyDaysAgo.timeIntervalSince1970)
-        )
+        let totals = try readTotals(handle: handle, now: now)
         let recentThreads = try readRecentThreads(handle: handle)
 
         return CodexUsageSnapshot(
@@ -49,10 +41,10 @@ struct CodexUsageReader {
             databasePath: databaseURL.path,
             databaseAvailable: true,
             threadCount: totals.threadCount,
-            tokensLast5Hours: totals.tokensLast5Hours,
-            tokensToday: totals.tokensToday,
-            tokensLast7Days: totals.tokensLast7Days,
-            tokensLast30Days: totals.tokensLast30Days,
+            tokensLast5Hours: sessionUsage?.tokensLast5Hours ?? totals.tokensLast5Hours,
+            tokensToday: sessionUsage?.tokensToday ?? totals.tokensToday,
+            tokensLast7Days: sessionUsage?.tokensLast7Days ?? totals.tokensLast7Days,
+            tokensLast30Days: sessionUsage?.tokensLast30Days ?? totals.tokensLast30Days,
             tokensAllTime: totals.tokensAllTime,
             limitStatus: limitStatus,
             recentThreads: recentThreads,
@@ -60,13 +52,63 @@ struct CodexUsageReader {
         )
     }
 
-    private func readTotals(
-        handle: OpaquePointer,
-        fiveHoursAgo: Int64,
-        todayStart: Int64,
-        sevenDaysAgo: Int64,
-        thirtyDaysAgo: Int64
-    ) throws -> UsageTotals {
+    func recentSessionFileURLs(since minimumUpdatedAt: Date) throws -> [URL] {
+        guard FileManager.default.fileExists(atPath: databaseURL.path) else {
+            return []
+        }
+
+        var db: OpaquePointer?
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX
+        let openResult = sqlite3_open_v2(databaseURL.path, &db, flags, nil)
+        guard openResult == SQLITE_OK, let handle = db else {
+            let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "Unable to open database."
+            if let db {
+                sqlite3_close(db)
+            }
+            throw ReaderError.sqlite(message)
+        }
+        defer {
+            sqlite3_close(handle)
+        }
+
+        sqlite3_busy_timeout(handle, 500)
+
+        let sql = """
+        SELECT rollout_path
+        FROM threads
+        WHERE updated_at >= ?
+          AND rollout_path != ''
+        GROUP BY rollout_path
+        ORDER BY MAX(updated_at) DESC;
+        """
+
+        var statement: OpaquePointer?
+        try prepare(sql: sql, handle: handle, statement: &statement)
+        defer {
+            sqlite3_finalize(statement)
+        }
+
+        sqlite3_bind_int64(statement, 1, Int64(minimumUpdatedAt.timeIntervalSince1970))
+
+        var fileURLs: [URL] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            let path = columnString(statement, index: 0)
+            guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else {
+                continue
+            }
+            fileURLs.append(URL(fileURLWithPath: path))
+        }
+
+        return fileURLs
+    }
+
+    private func readTotals(handle: OpaquePointer, now: Date) throws -> UsageTotals {
+        let calendar = Calendar.autoupdatingCurrent
+        let todayStart = calendar.startOfDay(for: now)
+        let fiveHoursAgo = calendar.date(byAdding: .hour, value: -5, to: now) ?? now
+        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+        let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) ?? now
+
         let sql = """
         SELECT
             COUNT(*),
@@ -84,10 +126,10 @@ struct CodexUsageReader {
             sqlite3_finalize(statement)
         }
 
-        sqlite3_bind_int64(statement, 1, fiveHoursAgo)
-        sqlite3_bind_int64(statement, 2, todayStart)
-        sqlite3_bind_int64(statement, 3, sevenDaysAgo)
-        sqlite3_bind_int64(statement, 4, thirtyDaysAgo)
+        sqlite3_bind_int64(statement, 1, Int64(fiveHoursAgo.timeIntervalSince1970))
+        sqlite3_bind_int64(statement, 2, Int64(todayStart.timeIntervalSince1970))
+        sqlite3_bind_int64(statement, 3, Int64(sevenDaysAgo.timeIntervalSince1970))
+        sqlite3_bind_int64(statement, 4, Int64(thirtyDaysAgo.timeIntervalSince1970))
 
         guard sqlite3_step(statement) == SQLITE_ROW else {
             throw ReaderError.sqlite("Unable to read Codex usage totals.")

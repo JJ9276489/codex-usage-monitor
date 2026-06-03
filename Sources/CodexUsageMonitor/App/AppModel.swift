@@ -4,9 +4,12 @@ import Foundation
 
 @MainActor
 final class AppModel: ObservableObject {
+    static let shared = AppModel()
+
     let usageStore: CodexUsageStore
     let widgetController: DesktopWidgetController
     private var workspaceObserver: NSObjectProtocol?
+    private var didStart = false
 
     init() {
         usageStore = CodexUsageStore()
@@ -14,6 +17,10 @@ final class AppModel: ObservableObject {
     }
 
     func start() {
+        guard !didStart else {
+            return
+        }
+        didStart = true
         usageStore.startAutoRefresh()
         observeWorkspaceChanges()
         widgetController.show(store: usageStore)

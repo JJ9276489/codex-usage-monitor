@@ -7,15 +7,17 @@ final class CodexUsageStore: ObservableObject {
     @Published private(set) var lastError: String?
 
     private var refreshTimer: Timer?
-    private static let refreshInterval: TimeInterval = 15
+    private var refreshTask: Task<Void, Never>?
+    private let sessionReader: CodexSessionTokenUsageReader
+    private static let refreshInterval: TimeInterval = 5
 
     init() {
         let databaseURL = Self.defaultDatabaseURL()
+        sessionReader = CodexSessionTokenUsageReader(codexHomeURL: Self.defaultCodexHomeURL())
         snapshot = .unavailable(
             databasePath: databaseURL.path,
             warning: "Usage has not been loaded yet."
         )
-        refresh()
     }
 
     var menuBarTitle: String {
@@ -33,6 +35,10 @@ final class CodexUsageStore: ObservableObject {
         Self.defaultLogsDatabaseURL()
     }
 
+    var codexHomeURL: URL {
+        Self.defaultCodexHomeURL()
+    }
+
     func startAutoRefresh() {
         guard refreshTimer == nil else {
             return
@@ -48,18 +54,58 @@ final class CodexUsageStore: ObservableObject {
     }
 
     func refresh() {
-        let limitStatus = try? CodexLimitStatusReader(databaseURL: logsDatabaseURL).loadLatest()
+        guard refreshTask == nil else {
+            return
+        }
 
-        do {
-            snapshot = try CodexUsageReader(databaseURL: databaseURL).loadSnapshot(limitStatus: limitStatus)
-            lastError = nil
-        } catch {
-            snapshot = .unavailable(
-                databasePath: databaseURL.path,
-                warning: error.localizedDescription,
-                limitStatus: limitStatus
-            )
-            lastError = error.localizedDescription
+        let now = Date()
+        let databaseURL = databaseURL
+        let logsDatabaseURL = logsDatabaseURL
+        let sessionReader = sessionReader
+        let thirtyDaysAgo = Calendar.autoupdatingCurrent.date(byAdding: .day, value: -30, to: now) ?? now
+
+        let worker = Task.detached(priority: .utility) { () -> RefreshResult in
+            let usageReader = CodexUsageReader(databaseURL: databaseURL)
+            let recentSessionURLs = try? usageReader.recentSessionFileURLs(since: thirtyDaysAgo)
+            let sessionUsage = try? sessionReader.loadSummary(now: now, fileURLs: recentSessionURLs)
+            let headerLimitStatus = try? CodexLimitStatusReader(databaseURL: logsDatabaseURL).loadLatest()
+            let limitStatus = sessionUsage?.latestLimitStatus ?? headerLimitStatus
+
+            do {
+                let snapshot = try usageReader.loadSnapshot(
+                    now: now,
+                    sessionUsage: sessionUsage,
+                    limitStatus: limitStatus
+                )
+                return .success(snapshot)
+            } catch {
+                return .failure(
+                    databasePath: databaseURL.path,
+                    message: error.localizedDescription,
+                    limitStatus: limitStatus
+                )
+            }
+        }
+
+        refreshTask = Task { [weak self] in
+            let result = await worker.value
+            guard let self else {
+                return
+            }
+
+            switch result {
+            case .success(let snapshot):
+                self.snapshot = snapshot
+                self.lastError = nil
+            case .failure(let databasePath, let message, let limitStatus):
+                self.snapshot = .unavailable(
+                    databasePath: databasePath,
+                    warning: message,
+                    limitStatus: limitStatus
+                )
+                self.lastError = message
+            }
+            self.refreshTask = nil
         }
     }
 
@@ -82,4 +128,19 @@ final class CodexUsageStore: ObservableObject {
             .homeDirectoryForCurrentUser
             .appendingPathComponent(".codex/logs_2.sqlite")
     }
+
+    private static func defaultCodexHomeURL() -> URL {
+        if let override = ProcessInfo.processInfo.environment["CODEX_HOME"], !override.isEmpty {
+            return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
+        }
+
+        return FileManager.default
+            .homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex", isDirectory: true)
+    }
+}
+
+private enum RefreshResult {
+    case success(CodexUsageSnapshot)
+    case failure(databasePath: String, message: String, limitStatus: CodexLimitStatus?)
 }

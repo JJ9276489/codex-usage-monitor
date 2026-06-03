@@ -7,10 +7,12 @@ struct CodexUsageMonitorApp: App {
     @StateObject private var model: AppModel
 
     init() {
-        let model = AppModel()
-        _model = StateObject(wrappedValue: model)
-        Task { @MainActor in
-            model.start()
+        _model = StateObject(wrappedValue: AppModel.shared)
+        DispatchQueue.main.async {
+            AppModel.shared.start()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            AppModel.shared.start()
         }
     }
 
@@ -22,6 +24,9 @@ struct CodexUsageMonitorApp: App {
             )
         } label: {
             Label(model.usageStore.menuBarTitle, systemImage: "terminal")
+                .onAppear {
+                    model.start()
+                }
         }
         .menuBarExtraStyle(.window)
 
@@ -34,5 +39,8 @@ struct CodexUsageMonitorApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        Task { @MainActor in
+            AppModel.shared.start()
+        }
     }
 }
