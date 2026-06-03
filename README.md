@@ -12,7 +12,7 @@ The app reads Codex's local state database at `~/.codex/state_5.sqlite` and show
 
 It does **not** read `auth.json`, access tokens, or OpenAI credentials.
 
-The first version runs as a menu bar app and opens a desktop-layer widget window. It is intentionally stark: black panel, hard borders, monospaced type, high-contrast status tags, and no soft chrome. It is a desktop-style widget window, not a WidgetKit extension yet.
+The first version runs as a menu bar app and opens a desktop-layer widget window. It is intentionally stark: dark material, monospaced type, high-contrast status tags, and compact metrics. It snaps its saved position to a small grid and refreshes local data every 15 seconds, but it is still a desktop-style widget window, not a WidgetKit extension yet.
 
 ## Current Limitation
 
@@ -20,7 +20,7 @@ Codex exposes live context and rate-limit information through the interactive `/
 
 Business and Enterprise users may have access to Codex analytics APIs, but those are workspace analytics surfaces and can lag. They are not the same as a live personal remaining-limit meter.
 
-When Codex logs a rate-limit event, the app reads the latest `X-Codex-Primary-*` headers from `~/.codex/logs_2.sqlite` and shows the 5-hour window, used percent, and reset time. If no limit event has been logged yet, that section stays marked as unavailable.
+When Codex logs a rate-limit event, the app reads the latest `X-Codex-Primary-*` headers from `~/.codex/logs_2.sqlite` and shows the 5-hour window, used percent, and reset time. If the reset time has already passed, the widget treats that header as inactive old data instead of showing a red "limit hit" state. If no limit event has been logged yet, that section stays marked as unavailable.
 
 ## Requirements
 

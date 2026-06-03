@@ -7,6 +7,7 @@ final class CodexUsageStore: ObservableObject {
     @Published private(set) var lastError: String?
 
     private var refreshTimer: Timer?
+    private static let refreshInterval: TimeInterval = 15
 
     init() {
         let databaseURL = Self.defaultDatabaseURL()
@@ -36,11 +37,14 @@ final class CodexUsageStore: ObservableObject {
         guard refreshTimer == nil else {
             return
         }
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+
+        let timer = Timer(timeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refresh()
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        refreshTimer = timer
     }
 
     func refresh() {

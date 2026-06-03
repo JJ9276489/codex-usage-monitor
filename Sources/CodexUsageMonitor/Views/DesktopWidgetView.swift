@@ -17,13 +17,17 @@ struct DesktopWidgetView: View {
         return min(Double(snapshot.tokensToday) / Double(snapshot.tokensLast7Days), 1)
     }
 
+    private var shellShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 28, style: .continuous)
+    }
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 28)
-                .fill(.ultraThinMaterial)
+            shellShape
+                .fill(.thinMaterial)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 28)
-                        .fill(Color.black.opacity(0.30))
+                    shellShape
+                        .fill(Color.black.opacity(0.22))
                 }
 
             VStack(alignment: .leading, spacing: 9) {
@@ -36,10 +40,14 @@ struct DesktopWidgetView: View {
             }
             .padding(14)
         }
-        .frame(width: 300, height: 236)
+        .frame(width: 300, height: 280)
+        .clipShape(shellShape)
+        .contentShape(shellShape)
+        .compositingGroup()
+        .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 8)
         .overlay {
-            RoundedRectangle(cornerRadius: 28)
-                .stroke(Color.white.opacity(0.22), lineWidth: 1)
+            shellShape
+                .strokeBorder(Color.white.opacity(0.13), lineWidth: 0.8)
         }
     }
 
@@ -54,7 +62,7 @@ struct DesktopWidgetView: View {
                 .padding(.horizontal, 7)
                 .padding(.vertical, 4)
                 .foregroundStyle(.black)
-                .background(snapshot.databaseAvailable ? Color.green.opacity(0.88) : Color.yellow)
+                .background(snapshot.databaseAvailable ? Color.green.opacity(0.78) : Color.yellow.opacity(0.84))
                 .clipShape(Capsule())
 
             Spacer()
@@ -87,13 +95,13 @@ struct DesktopWidgetView: View {
 
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(Color.white.opacity(0.16))
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(Color.green.opacity(0.82))
                         .frame(width: proxy.size.width * loadRatio)
-                    Rectangle()
-                        .stroke(Color.white.opacity(0.30), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
                 }
             }
             .frame(height: 8)
@@ -112,13 +120,13 @@ struct DesktopWidgetView: View {
 
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(Color.white.opacity(0.14))
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(limitColor)
                         .frame(width: proxy.size.width * limitRatio)
-                    Rectangle()
-                        .stroke(Color.white.opacity(0.30), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
                 }
             }
             .frame(height: 8)
@@ -148,7 +156,7 @@ struct DesktopWidgetView: View {
                 .foregroundStyle(.black)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(Color.yellow.opacity(0.88))
+                .background(Color.yellow.opacity(0.76))
                 .clipShape(Capsule())
 
             Text(sourceLabel)
@@ -168,7 +176,13 @@ struct DesktopWidgetView: View {
     }
 
     private var limitPercentLabel: String {
-        snapshot.limitStatus?.primaryUsedLabel(now: snapshot.generatedAt) ?? "NO LIMIT EVENT"
+        guard let status = snapshot.limitStatus else {
+            return "NO EVENT"
+        }
+        guard status.primaryWindowIsCurrent(now: snapshot.generatedAt) else {
+            return "INACTIVE"
+        }
+        return status.primaryUsedLabel
     }
 
     private var limitResetLabel: String {
@@ -187,7 +201,7 @@ struct DesktopWidgetView: View {
             return "LOCAL TOKENS"
         }
         if !status.primaryWindowIsCurrent(now: snapshot.generatedAt) {
-            return "LAST EVENT"
+            return "OLD HEADER"
         }
         return "\(status.planType.uppercased()) / \(status.activeLimit.uppercased())"
     }
@@ -209,7 +223,7 @@ struct DesktopWidgetView: View {
             status.primaryWindowIsCurrent(now: snapshot.generatedAt),
             let value = status.primaryUsedPercent
         else {
-            return Color.white.opacity(0.28)
+            return Color.white.opacity(0.22)
         }
         if value >= 95 {
             return .red.opacity(0.88)

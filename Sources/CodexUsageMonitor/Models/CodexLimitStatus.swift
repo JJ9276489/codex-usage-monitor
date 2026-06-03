@@ -52,7 +52,7 @@ struct CodexLimitStatus: Equatable {
 
     func primaryUsedLabel(now: Date = Date()) -> String {
         guard primaryWindowIsCurrent(now: now) else {
-            return "RESET PASSED"
+            return "INACTIVE"
         }
         return primaryUsedLabel
     }
