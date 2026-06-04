@@ -4,6 +4,8 @@ A local macOS menu-bar app and desktop widget for tracking Codex token usage fro
 
 [![CI](https://github.com/JJ9276489/codex-usage-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/JJ9276489/codex-usage-monitor/actions/workflows/ci.yml)
 
+<img src="docs/assets/widget-screenshot.png" alt="Codex Usage Monitor desktop widget showing token totals and 5-hour and 7-day limit bars" width="420">
+
 ## What It Shows
 
 - Tokens used today, in the last 5 hours, last 7 days, and last 30 days
