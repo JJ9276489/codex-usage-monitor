@@ -1,6 +1,11 @@
 import Foundation
 import SQLite3
 
+struct CodexSessionFileIndex: Equatable {
+    let fileCandidates: [CodexSessionFileCandidate]
+    let tokensWithoutSessionFile: Int64
+}
+
 struct CodexUsageReader {
     let databaseURL: URL
 
@@ -36,6 +41,7 @@ struct CodexUsageReader {
         let totals = try readTotals(handle: handle)
         let recentThreads = try readRecentThreads(handle: handle)
         let warning = Self.warning(for: sessionUsage)
+        let reconciledAllTime = max(totals.tokensAllTime, sessionUsage?.tokensAllTime ?? 0)
 
         return CodexUsageSnapshot(
             generatedAt: now,
@@ -50,11 +56,34 @@ struct CodexUsageReader {
             tokensToday: sessionUsage?.tokensToday ?? 0,
             tokensLast7Days: sessionUsage?.tokensLast7Days ?? 0,
             tokensLast30Days: sessionUsage?.tokensLast30Days ?? 0,
-            tokensAllTime: totals.tokensAllTime,
+            tokensAllTime: reconciledAllTime,
             limitStatus: limitStatus,
             recentThreads: recentThreads,
             warning: warning
         )
+    }
+
+    func sessionFileIndex() throws -> CodexSessionFileIndex {
+        guard FileManager.default.fileExists(atPath: databaseURL.path) else {
+            return CodexSessionFileIndex(fileCandidates: [], tokensWithoutSessionFile: 0)
+        }
+
+        var db: OpaquePointer?
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX
+        let openResult = sqlite3_open_v2(databaseURL.path, &db, flags, nil)
+        guard openResult == SQLITE_OK, let handle = db else {
+            let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "Unable to open database."
+            if let db {
+                sqlite3_close(db)
+            }
+            throw ReaderError.sqlite(message)
+        }
+        defer {
+            sqlite3_close(handle)
+        }
+
+        sqlite3_busy_timeout(handle, 500)
+        return try readSessionFileIndex(handle: handle)
     }
 
     func recentSessionFileURLs(since minimumUpdatedAt: Date) throws -> [URL] {
@@ -128,6 +157,59 @@ struct CodexUsageReader {
         return UsageTotals(
             threadCount: Int(sqlite3_column_int64(statement, 0)),
             tokensAllTime: sqlite3_column_int64(statement, 1)
+        )
+    }
+
+    private func readSessionFileIndex(handle: OpaquePointer) throws -> CodexSessionFileIndex {
+        let sessionSQL = """
+        SELECT rollout_path, COALESCE(SUM(tokens_used), 0)
+        FROM threads
+        WHERE rollout_path IS NOT NULL
+          AND rollout_path != ''
+        GROUP BY rollout_path
+        ORDER BY MAX(updated_at) DESC;
+        """
+
+        var statement: OpaquePointer?
+        try prepare(sql: sessionSQL, handle: handle, statement: &statement)
+        defer {
+            sqlite3_finalize(statement)
+        }
+
+        var candidates: [CodexSessionFileCandidate] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            let path = columnString(statement, index: 0)
+            guard !path.isEmpty else {
+                continue
+            }
+            candidates.append(
+                CodexSessionFileCandidate(
+                    url: URL(fileURLWithPath: (path as NSString).expandingTildeInPath),
+                    databaseTokens: sqlite3_column_int64(statement, 1)
+                )
+            )
+        }
+
+        let unlinkedSQL = """
+        SELECT COALESCE(SUM(tokens_used), 0)
+        FROM threads
+        WHERE rollout_path IS NULL
+           OR rollout_path = '';
+        """
+
+        var unlinkedStatement: OpaquePointer?
+        try prepare(sql: unlinkedSQL, handle: handle, statement: &unlinkedStatement)
+        defer {
+            sqlite3_finalize(unlinkedStatement)
+        }
+
+        guard sqlite3_step(unlinkedStatement) == SQLITE_ROW else {
+            throw ReaderError.sqlite("Unable to read Codex sessionless usage totals.")
+        }
+
+        return CodexSessionFileIndex(
+            fileCandidates: candidates,
+            tokensWithoutSessionFile: sqlite3_column_int64(unlinkedStatement, 0)
         )
     }
 

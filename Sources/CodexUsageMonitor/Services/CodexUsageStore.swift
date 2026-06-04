@@ -80,12 +80,15 @@ final class CodexUsageStore: ObservableObject {
         let databaseURL = databaseURL
         let logsDatabaseURL = logsDatabaseURL
         let sessionReader = sessionReader
-        let thirtyDaysAgo = Calendar.autoupdatingCurrent.date(byAdding: .day, value: -30, to: now) ?? now
 
         let worker = Task.detached(priority: .utility) { () -> RefreshResult in
             let usageReader = CodexUsageReader(databaseURL: databaseURL)
-            let recentSessionURLs = try? usageReader.recentSessionFileURLs(since: thirtyDaysAgo)
-            let sessionUsage = try? await sessionReader.loadSummary(now: now, fileURLs: recentSessionURLs)
+            let sessionFileIndex = try? usageReader.sessionFileIndex()
+            let sessionUsage = try? await sessionReader.loadSummary(
+                now: now,
+                fileCandidates: sessionFileIndex?.fileCandidates ?? [],
+                databaseTokensWithoutSessionFile: sessionFileIndex?.tokensWithoutSessionFile ?? 0
+            )
             let headerLimitStatus = try? CodexLimitStatusReader(databaseURL: logsDatabaseURL).loadLatest()
             let limitStatus = latestLimitStatus(sessionUsage?.latestLimitStatus, headerLimitStatus)
 

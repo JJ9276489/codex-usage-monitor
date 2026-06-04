@@ -225,8 +225,8 @@ def main():
 
         result = run_audit(codex_home, usage_db, now)
 
-        assert_equal(result["session_file_count"], 4, "session_file_count")
-        assert_equal(result["failed_session_file_count"], 1, "failed_session_file_count")
+        assert_equal(result["session_file_count"], 5, "session_file_count")
+        assert_equal(result["failed_session_file_count"], 2, "failed_session_file_count")
         assert_equal(result["token_count_event_count"], 10, "token_count_event_count")
         assert_equal(result["missing_last_usage_event_count"], 1, "missing_last_usage_event_count")
         assert_equal(result["tokens_last_5_hours"], 250, "tokens_last_5_hours")
@@ -234,6 +234,12 @@ def main():
         assert_equal(result["tokens_last_7_days"], 1850, "tokens_last_7_days")
         assert_equal(result["tokens_last_30_days"], 2450, "tokens_last_30_days")
         assert_equal(result["tokens_all_time_db"], 1001549, "tokens_all_time_db")
+        assert_equal(result["tokens_all_time_reconciled"], 2256449, "tokens_all_time_reconciled")
+        assert_equal(
+            result["tokens_all_time_reconciled_delta"],
+            1254900,
+            "tokens_all_time_reconciled_delta",
+        )
         assert_equal(
             result["latest_limit"]["rate_limits"]["primary"]["used_percent"],
             33.0,

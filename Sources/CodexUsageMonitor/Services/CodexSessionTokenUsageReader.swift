@@ -13,6 +13,16 @@ struct CodexSessionUsageSummary: Equatable {
     let latestLimitStatus: CodexLimitStatus?
 }
 
+struct CodexSessionFileCandidate: Equatable {
+    let url: URL
+    let databaseTokens: Int64?
+
+    init(url: URL, databaseTokens: Int64? = nil) {
+        self.url = url
+        self.databaseTokens = databaseTokens
+    }
+}
+
 actor CodexSessionTokenUsageReader {
     let codexHomeURL: URL
     private var cache: [String: CachedFileUsage] = [:]
@@ -22,41 +32,53 @@ actor CodexSessionTokenUsageReader {
     }
 
     func loadSummary(now: Date = Date(), fileURLs: [URL]? = nil) throws -> CodexSessionUsageSummary {
+        let candidates = (fileURLs ?? []).map { CodexSessionFileCandidate(url: $0) }
+        return try loadSummary(now: now, fileCandidates: candidates)
+    }
+
+    func loadSummary(
+        now: Date = Date(),
+        fileCandidates: [CodexSessionFileCandidate],
+        databaseTokensWithoutSessionFile: Int64 = 0
+    ) throws -> CodexSessionUsageSummary {
         let calendar = Calendar.autoupdatingCurrent
         let todayStart = calendar.startOfDay(for: now)
         let fiveHoursAgo = calendar.date(byAdding: .hour, value: -5, to: now) ?? now
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
         let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) ?? now
-        let candidateFileURLs = ((fileURLs ?? []) + sessionFileURLs(modifiedSince: thirtyDaysAgo))
+        let candidateFiles = (fileCandidates + sessionFileURLs(modifiedSince: thirtyDaysAgo).map {
+            CodexSessionFileCandidate(url: $0)
+        })
             .deduplicatedAndSortedByPath()
 
         var tokensLast5Hours: Int64 = 0
         var tokensToday: Int64 = 0
         var tokensLast7Days: Int64 = 0
         var tokensLast30Days: Int64 = 0
-        var tokensAllTime: Int64 = 0
+        var tokensAllTime: Int64 = databaseTokensWithoutSessionFile
         var latestLimitStatus: CodexLimitStatus?
         var failedSessionFileCount = 0
         var tokenCountEventCount = 0
         var missingLastUsageEventCount = 0
 
-        let activePaths = Set(candidateFileURLs.map(\.path))
+        let activePaths = Set(candidateFiles.map(\.url.path))
         cache = cache.filter { activePaths.contains($0.key) }
 
-        for fileURL in candidateFileURLs {
+        for candidate in candidateFiles {
             let usage: ParsedFileUsage
             do {
-                usage = try self.usage(for: fileURL)
+                usage = try self.usage(for: candidate.url)
             } catch {
                 failedSessionFileCount += 1
+                tokensAllTime += candidate.databaseTokens ?? 0
                 continue
             }
 
             tokenCountEventCount += usage.tokenCountEventCount
             missingLastUsageEventCount += usage.missingLastUsageEventCount
+            tokensAllTime += max(usage.latestTotalTokens ?? 0, candidate.databaseTokens ?? 0)
 
             for event in usage.events {
-                tokensAllTime += event.increment
                 if event.timestamp >= fiveHoursAgo {
                     tokensLast5Hours += event.increment
                 }
@@ -78,7 +100,7 @@ actor CodexSessionTokenUsageReader {
         }
 
         return CodexSessionUsageSummary(
-            sessionFileCount: candidateFileURLs.count,
+            sessionFileCount: candidateFiles.count,
             failedSessionFileCount: failedSessionFileCount,
             tokenCountEventCount: tokenCountEventCount,
             missingLastUsageEventCount: missingLastUsageEventCount,
@@ -146,6 +168,7 @@ actor CodexSessionTokenUsageReader {
         guard let text = String(data: data, encoding: .utf8) else {
             return ParsedFileUsage(
                 events: [],
+                latestTotalTokens: nil,
                 tokenCountEventCount: 0,
                 missingLastUsageEventCount: 0,
                 latestLimitStatus: nil
@@ -154,6 +177,7 @@ actor CodexSessionTokenUsageReader {
 
         var events: [TokenIncrement] = []
         var previousTotal: Int64?
+        var latestTotalTokens: Int64?
         var tokenCountEventCount = 0
         var missingLastUsageEventCount = 0
         var latestLimitStatus: CodexLimitStatus?
@@ -166,6 +190,7 @@ actor CodexSessionTokenUsageReader {
             if record.lastTokens == nil {
                 missingLastUsageEventCount += 1
             }
+            latestTotalTokens = record.totalTokens
 
             let increment: Int64
             if let previousTotal {
@@ -194,6 +219,7 @@ actor CodexSessionTokenUsageReader {
 
         return ParsedFileUsage(
             events: events,
+            latestTotalTokens: latestTotalTokens,
             tokenCountEventCount: tokenCountEventCount,
             missingLastUsageEventCount: missingLastUsageEventCount,
             latestLimitStatus: latestLimitStatus
@@ -368,6 +394,7 @@ private struct TokenIncrement {
 
 private struct ParsedFileUsage {
     let events: [TokenIncrement]
+    let latestTotalTokens: Int64?
     let tokenCountEventCount: Int
     let missingLastUsageEventCount: Int
     let latestLimitStatus: CodexLimitStatus?
@@ -383,18 +410,39 @@ private struct CachedFileUsage {
     let usage: ParsedFileUsage
 }
 
-private extension Array where Element == URL {
-    func deduplicatedAndSortedByPath() -> [URL] {
+private extension Array where Element == CodexSessionFileCandidate {
+    func deduplicatedAndSortedByPath() -> [CodexSessionFileCandidate] {
         var seen: Set<String> = []
-        var urls: [URL] = []
+        var candidates: [CodexSessionFileCandidate] = []
 
-        for url in self {
-            let normalizedURL = url.standardizedFileURL.resolvingSymlinksInPath()
+        for candidate in self {
+            let normalizedURL = candidate.url.standardizedFileURL.resolvingSymlinksInPath()
+            let normalizedCandidate = CodexSessionFileCandidate(
+                url: normalizedURL,
+                databaseTokens: candidate.databaseTokens
+            )
             if seen.insert(normalizedURL.path).inserted {
-                urls.append(normalizedURL)
+                candidates.append(normalizedCandidate)
+                continue
+            }
+
+            if let index = candidates.firstIndex(where: { $0.url.path == normalizedURL.path }) {
+                let existing = candidates[index]
+                let mergedTokens: Int64?
+                switch (existing.databaseTokens, normalizedCandidate.databaseTokens) {
+                case (.some(let lhs), .some(let rhs)):
+                    mergedTokens = Swift.max(lhs, rhs)
+                case (.some(let lhs), .none):
+                    mergedTokens = lhs
+                case (.none, .some(let rhs)):
+                    mergedTokens = rhs
+                case (.none, .none):
+                    mergedTokens = nil
+                }
+                candidates[index] = CodexSessionFileCandidate(url: normalizedURL, databaseTokens: mergedTokens)
             }
         }
 
-        return urls.sorted { $0.path < $1.path }
+        return candidates.sorted { $0.url.path < $1.url.path }
     }
 }

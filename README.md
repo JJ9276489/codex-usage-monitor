@@ -9,7 +9,7 @@ A local macOS desktop widget and menu-bar app for tracking Codex token usage fro
 ## What It Shows
 
 - Tokens used today, in the last 5 hours, last 7 days, and last 30 days
-- All-time local token total from Codex's local state database
+- All-time local token total reconciled from Codex's local state database and session logs
 - Latest observed 5-hour and 7-day Codex rate-limit percentages
 - Reset times for both the 5-hour and 7-day limits
 - Local diagnostics: session file count, `token_count` event count, and partial-data warnings
@@ -70,10 +70,12 @@ Rolling totals come from local Codex session JSONL `token_count` events:
 
 The reader uses exact `last_token_usage.total_tokens` for the first observed event in a session, then positive deltas between consecutive cumulative `total_token_usage.total_tokens` values. It ignores repeated rate-limit-only events and ignores empty limit payloads that do not include a real primary or secondary window.
 
-All-time totals come from:
+All-time totals use `state_5.sqlite` as the baseline, then correct individual sessions upward when the matching JSONL file contains a newer cumulative total:
 
 ```text
 ~/.codex/state_5.sqlite
+~/.codex/sessions/**/*.jsonl
+~/.codex/archived_sessions/*.jsonl
 ```
 
 Rate-limit percentages and reset times come from the newest usable local rate-limit payload in session JSONL or Codex logs.

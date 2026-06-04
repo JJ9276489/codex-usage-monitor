@@ -55,31 +55,48 @@ def usable_rate_limits(rate_limits):
     return None
 
 
-def recent_paths_from_db(database_path, since_epoch):
+def normalized_path(path):
+    return path.expanduser().resolve()
+
+
+def session_index_from_db(database_path):
     if not database_path.exists():
-        return [], None
+        return {}, 0, None
 
     connection = sqlite3.connect(database_path)
     try:
         rows = connection.execute(
             """
-            SELECT rollout_path
+            SELECT rollout_path, COALESCE(SUM(tokens_used), 0)
             FROM threads
-            WHERE updated_at >= ?
+            WHERE rollout_path IS NOT NULL
               AND rollout_path != ''
             GROUP BY rollout_path
             ORDER BY MAX(updated_at) DESC
             """,
-            (int(since_epoch),),
         ).fetchall()
+        unlinked_tokens = connection.execute(
+            """
+            SELECT COALESCE(SUM(tokens_used), 0)
+            FROM threads
+            WHERE rollout_path IS NULL
+               OR rollout_path = ''
+            """
+        ).fetchone()[0]
         all_time = connection.execute(
             "SELECT COALESCE(SUM(tokens_used), 0) FROM threads"
         ).fetchone()[0]
     finally:
         connection.close()
 
-    paths = [Path(row[0]) for row in rows if row[0] and Path(row[0]).exists()]
-    return paths, int(all_time)
+    path_tokens = {}
+    for raw_path, tokens in rows:
+        if not raw_path:
+            continue
+        path = normalized_path(Path(raw_path))
+        path_tokens[path] = path_tokens.get(path, 0) + int(tokens)
+
+    return path_tokens, int(unlinked_tokens), int(all_time)
 
 
 def recent_paths_from_filesystem(codex_home, since_epoch):
@@ -103,11 +120,14 @@ def recent_paths_from_filesystem(codex_home, since_epoch):
 
 
 def unique_sorted(paths):
-    return sorted({path.expanduser().resolve() for path in paths}, key=lambda p: str(p))
+    return sorted({normalized_path(path) for path in paths}, key=lambda p: str(p))
 
 
-def token_count_events(path):
+def read_session_usage(path):
     previous_total = None
+    latest_total = None
+    events = []
+
     with path.open("r", encoding="utf-8", errors="ignore") as handle:
         for line in handle:
             if '"token_count"' not in line or '"total_token_usage"' not in line:
@@ -133,6 +153,7 @@ def token_count_events(path):
             last_tokens = int_value(last_tokens)
             if observed_at is None or total_tokens is None:
                 continue
+            latest_total = total_tokens
 
             if previous_total is None:
                 increment = last_tokens if last_tokens is not None else total_tokens
@@ -147,12 +168,19 @@ def token_count_events(path):
             increment = max(increment, 0)
             previous_total = total_tokens
 
-            yield {
-                "timestamp": observed_at,
-                "increment": increment,
-                "rate_limits": usable_rate_limits(payload.get("rate_limits")),
-                "missing_last_usage": last_tokens is None,
-            }
+            events.append(
+                {
+                    "timestamp": observed_at,
+                    "increment": increment,
+                    "rate_limits": usable_rate_limits(payload.get("rate_limits")),
+                    "missing_last_usage": last_tokens is None,
+                }
+            )
+
+    return {
+        "events": events,
+        "latest_total_tokens": latest_total,
+    }
 
 
 def audit(codex_home, database_path, now=None):
@@ -164,9 +192,9 @@ def audit(codex_home, database_path, now=None):
     seven_days_ago = now - (7 * 24 * 60 * 60)
     thirty_days_ago = now - (30 * 24 * 60 * 60)
 
-    db_paths, all_time = recent_paths_from_db(database_path, thirty_days_ago)
+    db_path_tokens, db_unlinked_tokens, all_time_db = session_index_from_db(database_path)
     fs_paths = recent_paths_from_filesystem(codex_home, thirty_days_ago)
-    paths = unique_sorted(db_paths + fs_paths)
+    paths = unique_sorted(list(db_path_tokens.keys()) + fs_paths)
 
     totals = {
         "tokens_last_5_hours": 0,
@@ -174,14 +202,22 @@ def audit(codex_home, database_path, now=None):
         "tokens_last_7_days": 0,
         "tokens_last_30_days": 0,
     }
+    tokens_all_time_reconciled = db_unlinked_tokens
     latest_limit = None
     event_count = 0
     missing_last_usage_event_count = 0
     failed_session_file_count = 0
 
     for path in paths:
+        database_tokens = db_path_tokens.get(path)
         try:
-            for event in token_count_events(path):
+            usage = read_session_usage(path)
+            tokens_all_time_reconciled += max(
+                usage["latest_total_tokens"] or 0,
+                database_tokens or 0,
+            )
+
+            for event in usage["events"]:
                 event_count += 1
                 if event["missing_last_usage"]:
                     missing_last_usage_event_count += 1
@@ -207,6 +243,7 @@ def audit(codex_home, database_path, now=None):
                     }
         except OSError:
             failed_session_file_count += 1
+            tokens_all_time_reconciled += database_tokens or 0
 
     return {
         "codex_home": str(codex_home),
@@ -216,7 +253,11 @@ def audit(codex_home, database_path, now=None):
         "token_count_event_count": event_count,
         "missing_last_usage_event_count": missing_last_usage_event_count,
         **totals,
-        "tokens_all_time_db": all_time,
+        "tokens_all_time_db": all_time_db,
+        "tokens_all_time_reconciled": tokens_all_time_reconciled,
+        "tokens_all_time_reconciled_delta": (
+            None if all_time_db is None else tokens_all_time_reconciled - all_time_db
+        ),
         "latest_limit": latest_limit,
     }
 
@@ -255,7 +296,15 @@ def main():
     print(f"today: {compact(result['tokens_today'])}")
     print(f"7d: {compact(result['tokens_last_7_days'])}")
     print(f"30d: {compact(result['tokens_last_30_days'])}")
-    print(f"all-time DB: {compact(result['tokens_all_time_db'])}")
+    print(f"all-time: {compact(result['tokens_all_time_reconciled'])}")
+    if result["tokens_all_time_db"] != result["tokens_all_time_reconciled"]:
+        delta = result["tokens_all_time_reconciled_delta"]
+        delta_text = "no DB baseline" if delta is None else f"{delta:+d} reconciled"
+        print(
+            "all-time DB: "
+            f"{compact(result['tokens_all_time_db'])} "
+            f"({delta_text})"
+        )
 
     latest_limit = result["latest_limit"]
     if latest_limit:
