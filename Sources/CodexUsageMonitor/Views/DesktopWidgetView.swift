@@ -188,12 +188,16 @@ struct DesktopWidgetView: View {
             Text(sourceLabel)
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.84))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
 
             Spacer()
 
-            Text(UsageFormat.timestamp(snapshot.generatedAt))
+            Text(refreshTimeLabel)
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.45))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
         }
     }
 
@@ -263,13 +267,28 @@ struct DesktopWidgetView: View {
         if snapshot.warning != nil {
             return "PARTIAL LOCAL"
         }
+        guard let latestTokenEventAt = snapshot.latestTokenEventAt else {
+            return "NO TOKEN EVENTS"
+        }
+        if tokenEventIsOld(latestTokenEventAt) {
+            return "WAITING EVENT"
+        }
         guard let status = snapshot.limitStatus else {
             return "LOCAL TOKENS"
         }
         if !hasCurrentLimitStatus && !hasCurrentSecondaryLimitStatus {
             return "LIMITS STALE"
         }
-        return "\(status.planType.uppercased()) / \(status.activeLimit.uppercased())"
+        let plan = status.planType == "unknown" ? "LOCAL" : status.planType.uppercased()
+        return "\(plan) / \(status.activeLimit.uppercased())"
+    }
+
+    private var refreshTimeLabel: String {
+        "CHK \(UsageFormat.timestamp(snapshot.generatedAt))"
+    }
+
+    private func tokenEventIsOld(_ date: Date) -> Bool {
+        snapshot.generatedAt.timeIntervalSince(date) > 15 * 60
     }
 
     private var limitRatio: Double {

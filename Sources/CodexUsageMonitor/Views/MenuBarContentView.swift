@@ -79,6 +79,7 @@ struct MenuBarContentView: View {
             MetricRow(label: "Threads", value: "\(store.snapshot.threadCount)")
             MetricRow(label: "Session files", value: "\(store.snapshot.sessionFileCount)")
             MetricRow(label: "token_count events", value: UsageFormat.decimal(Int64(store.snapshot.tokenCountEventCount)))
+            MetricRow(label: "Latest token event", value: latestTokenEventLabel)
             if let status = store.snapshot.limitStatus {
                 MetricRow(label: "\(status.primaryWindowLabel) limit", value: status.primaryUsedLabel(now: store.snapshot.generatedAt))
                 MetricRow(label: "\(status.primaryWindowLabel) reset", value: status.resetLabel(now: store.snapshot.generatedAt))
@@ -128,6 +129,13 @@ struct MenuBarContentView: View {
             return "INACTIVE"
         }
         return status.secondaryUsedLabel
+    }
+
+    private var latestTokenEventLabel: String {
+        guard let date = store.snapshot.latestTokenEventAt else {
+            return "none"
+        }
+        return UsageFormat.shortDateTime(date)
     }
 }
 

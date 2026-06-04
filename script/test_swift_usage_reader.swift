@@ -81,6 +81,7 @@ struct TestSwiftUsageReader {
         try assertEqual(summary.tokensLast7Days, 1_850, "tokensLast7Days")
         try assertEqual(summary.tokensLast30Days, 2_450, "tokensLast30Days")
         try assertEqual(summary.tokensAllTime, 2_256_491, "tokensAllTime")
+        try assertEqual(summary.latestTokenEventAt, today10.addingTimeInterval(60), "latestTokenEventAt")
         try assertEqual(summary.latestLimitStatus?.primaryUsedPercent, 33, "primaryUsedPercent")
         try assertEqual(summary.latestLimitStatus?.secondaryUsedPercent, 44, "secondaryUsedPercent")
         try assertEqual(summary.latestLimitStatus?.activeLimit, "codex", "activeLimit")

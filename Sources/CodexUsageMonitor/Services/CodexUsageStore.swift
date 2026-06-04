@@ -80,6 +80,7 @@ final class CodexUsageStore: ObservableObject {
         let databaseURL = databaseURL
         let logsDatabaseURL = logsDatabaseURL
         let sessionReader = sessionReader
+        let bypassSessionCache = source == "manual"
 
         let worker = Task.detached(priority: .utility) { () -> RefreshResult in
             let usageReader = CodexUsageReader(databaseURL: databaseURL)
@@ -87,7 +88,8 @@ final class CodexUsageStore: ObservableObject {
             let sessionUsage = try? await sessionReader.loadSummary(
                 now: now,
                 fileCandidates: sessionFileIndex?.fileCandidates ?? [],
-                databaseTokensWithoutSessionFile: sessionFileIndex?.tokensWithoutSessionFile ?? 0
+                databaseTokensWithoutSessionFile: sessionFileIndex?.tokensWithoutSessionFile ?? 0,
+                bypassCache: bypassSessionCache
             )
             let headerLimitStatus = try? CodexLimitStatusReader(databaseURL: logsDatabaseURL).loadLatest()
             let limitStatus = latestLimitStatus(sessionUsage?.latestLimitStatus, headerLimitStatus)
@@ -118,7 +120,9 @@ final class CodexUsageStore: ObservableObject {
             case .success(let snapshot):
                 self.snapshot = snapshot
                 self.lastError = nil
-                self.logger.info("Refresh succeeded")
+                self.logger.notice(
+                    "Refresh succeeded: today=\(snapshot.tokensToday, privacy: .public) 5h=\(snapshot.tokensLast5Hours, privacy: .public) tokenEvents=\(snapshot.tokenCountEventCount, privacy: .public) latestTokenEvent=\(snapshot.latestTokenEventAt?.description ?? "none", privacy: .public)"
+                )
             case .failure(let databasePath, let message, let limitStatus):
                 self.snapshot = .unavailable(
                     databasePath: databasePath,

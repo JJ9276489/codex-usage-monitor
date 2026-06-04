@@ -126,6 +126,7 @@ def unique_sorted(paths):
 def read_session_usage(path):
     previous_total = None
     latest_total = None
+    latest_token_event_at = None
     events = []
 
     with path.open("r", encoding="utf-8", errors="ignore") as handle:
@@ -154,6 +155,7 @@ def read_session_usage(path):
             if observed_at is None or total_tokens is None:
                 continue
             latest_total = total_tokens
+            latest_token_event_at = observed_at
 
             if previous_total is None:
                 increment = last_tokens if last_tokens is not None else total_tokens
@@ -180,6 +182,7 @@ def read_session_usage(path):
     return {
         "events": events,
         "latest_total_tokens": latest_total,
+        "latest_token_event_at": latest_token_event_at,
     }
 
 
@@ -204,6 +207,7 @@ def audit(codex_home, database_path, now=None):
     }
     tokens_all_time_reconciled = db_unlinked_tokens
     latest_limit = None
+    latest_token_event_at = None
     event_count = 0
     missing_last_usage_event_count = 0
     failed_session_file_count = 0
@@ -216,6 +220,10 @@ def audit(codex_home, database_path, now=None):
                 usage["latest_total_tokens"] or 0,
                 database_tokens or 0,
             )
+            if usage["latest_token_event_at"] and (
+                latest_token_event_at is None or usage["latest_token_event_at"] > latest_token_event_at
+            ):
+                latest_token_event_at = usage["latest_token_event_at"]
 
             for event in usage["events"]:
                 event_count += 1
@@ -258,6 +266,12 @@ def audit(codex_home, database_path, now=None):
         "tokens_all_time_reconciled_delta": (
             None if all_time_db is None else tokens_all_time_reconciled - all_time_db
         ),
+        "latest_token_event_at": (
+            None
+            if latest_token_event_at is None
+            else datetime.fromtimestamp(latest_token_event_at).isoformat(timespec="seconds")
+        ),
+        "latest_token_event_at_epoch": latest_token_event_at,
         "latest_limit": latest_limit,
     }
 
@@ -297,6 +311,7 @@ def main():
     print(f"7d: {compact(result['tokens_last_7_days'])}")
     print(f"30d: {compact(result['tokens_last_30_days'])}")
     print(f"all-time: {compact(result['tokens_all_time_reconciled'])}")
+    print(f"latest token event: {result['latest_token_event_at'] or 'none'}")
     if result["tokens_all_time_db"] != result["tokens_all_time_reconciled"]:
         delta = result["tokens_all_time_reconciled_delta"]
         delta_text = "no DB baseline" if delta is None else f"{delta:+d} reconciled"

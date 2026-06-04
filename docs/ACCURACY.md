@@ -61,10 +61,13 @@ The menu shows:
 
 - session file count
 - `token_count` event count
+- latest local `token_count` event time
 - failed session file count, when non-zero
 - missing `last_token_usage` event count, when non-zero
 
 If the app cannot read every local source precisely, the desktop widget shows `PARTIAL LOCAL` instead of silently presenting the number as complete.
+
+The desktop widget footer shows the latest refresh check time. If Codex has not written a recent `token_count` event, the source label switches to `WAITING EVENT`; pressing refresh rereads local files, but it cannot show tokens for an in-progress Codex response until Codex writes the next event.
 
 ## Known Limits
 

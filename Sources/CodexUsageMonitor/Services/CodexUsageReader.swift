@@ -57,6 +57,7 @@ struct CodexUsageReader {
             tokensLast7Days: sessionUsage?.tokensLast7Days ?? 0,
             tokensLast30Days: sessionUsage?.tokensLast30Days ?? 0,
             tokensAllTime: reconciledAllTime,
+            latestTokenEventAt: sessionUsage?.latestTokenEventAt,
             limitStatus: limitStatus,
             recentThreads: recentThreads,
             warning: warning

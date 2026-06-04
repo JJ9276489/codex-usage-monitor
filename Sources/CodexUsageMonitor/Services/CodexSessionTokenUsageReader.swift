@@ -10,6 +10,7 @@ struct CodexSessionUsageSummary: Equatable {
     let tokensLast7Days: Int64
     let tokensLast30Days: Int64
     let tokensAllTime: Int64
+    let latestTokenEventAt: Date?
     let latestLimitStatus: CodexLimitStatus?
 }
 
@@ -31,15 +32,20 @@ actor CodexSessionTokenUsageReader {
         self.codexHomeURL = codexHomeURL
     }
 
-    func loadSummary(now: Date = Date(), fileURLs: [URL]? = nil) throws -> CodexSessionUsageSummary {
+    func loadSummary(
+        now: Date = Date(),
+        fileURLs: [URL]? = nil,
+        bypassCache: Bool = false
+    ) throws -> CodexSessionUsageSummary {
         let candidates = (fileURLs ?? []).map { CodexSessionFileCandidate(url: $0) }
-        return try loadSummary(now: now, fileCandidates: candidates)
+        return try loadSummary(now: now, fileCandidates: candidates, bypassCache: bypassCache)
     }
 
     func loadSummary(
         now: Date = Date(),
         fileCandidates: [CodexSessionFileCandidate],
-        databaseTokensWithoutSessionFile: Int64 = 0
+        databaseTokensWithoutSessionFile: Int64 = 0,
+        bypassCache: Bool = false
     ) throws -> CodexSessionUsageSummary {
         let calendar = Calendar.autoupdatingCurrent
         let todayStart = calendar.startOfDay(for: now)
@@ -57,6 +63,7 @@ actor CodexSessionTokenUsageReader {
         var tokensLast30Days: Int64 = 0
         var tokensAllTime: Int64 = databaseTokensWithoutSessionFile
         var latestLimitStatus: CodexLimitStatus?
+        var latestTokenEventAt: Date?
         var failedSessionFileCount = 0
         var tokenCountEventCount = 0
         var missingLastUsageEventCount = 0
@@ -67,7 +74,7 @@ actor CodexSessionTokenUsageReader {
         for candidate in candidateFiles {
             let usage: ParsedFileUsage
             do {
-                usage = try self.usage(for: candidate.url)
+                usage = try self.usage(for: candidate.url, bypassCache: bypassCache)
             } catch {
                 failedSessionFileCount += 1
                 tokensAllTime += candidate.databaseTokens ?? 0
@@ -77,6 +84,10 @@ actor CodexSessionTokenUsageReader {
             tokenCountEventCount += usage.tokenCountEventCount
             missingLastUsageEventCount += usage.missingLastUsageEventCount
             tokensAllTime += max(usage.latestTotalTokens ?? 0, candidate.databaseTokens ?? 0)
+            if let eventAt = usage.latestTokenEventAt,
+               latestTokenEventAt == nil || eventAt > latestTokenEventAt! {
+                latestTokenEventAt = eventAt
+            }
 
             for event in usage.events {
                 if event.timestamp >= fiveHoursAgo {
@@ -109,6 +120,7 @@ actor CodexSessionTokenUsageReader {
             tokensLast7Days: tokensLast7Days,
             tokensLast30Days: tokensLast30Days,
             tokensAllTime: tokensAllTime,
+            latestTokenEventAt: latestTokenEventAt,
             latestLimitStatus: latestLimitStatus
         )
     }
@@ -146,7 +158,7 @@ actor CodexSessionTokenUsageReader {
         return fileURLs.sorted { $0.path < $1.path }
     }
 
-    private func usage(for fileURL: URL) throws -> ParsedFileUsage {
+    private func usage(for fileURL: URL, bypassCache: Bool) throws -> ParsedFileUsage {
         let values = try fileURL.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
         let signature = FileSignature(
             byteCount: Int64(values.fileSize ?? -1),
@@ -154,7 +166,7 @@ actor CodexSessionTokenUsageReader {
         )
 
         let cacheKey = fileURL.path
-        if let cached = cache[cacheKey], cached.signature == signature {
+        if !bypassCache, let cached = cache[cacheKey], cached.signature == signature {
             return cached.usage
         }
 
@@ -169,6 +181,7 @@ actor CodexSessionTokenUsageReader {
             return ParsedFileUsage(
                 events: [],
                 latestTotalTokens: nil,
+                latestTokenEventAt: nil,
                 tokenCountEventCount: 0,
                 missingLastUsageEventCount: 0,
                 latestLimitStatus: nil
@@ -178,6 +191,7 @@ actor CodexSessionTokenUsageReader {
         var events: [TokenIncrement] = []
         var previousTotal: Int64?
         var latestTotalTokens: Int64?
+        var latestTokenEventAt: Date?
         var tokenCountEventCount = 0
         var missingLastUsageEventCount = 0
         var latestLimitStatus: CodexLimitStatus?
@@ -191,6 +205,9 @@ actor CodexSessionTokenUsageReader {
                 missingLastUsageEventCount += 1
             }
             latestTotalTokens = record.totalTokens
+            if latestTokenEventAt == nil || record.timestamp > latestTokenEventAt! {
+                latestTokenEventAt = record.timestamp
+            }
 
             let increment: Int64
             if let previousTotal {
@@ -220,6 +237,7 @@ actor CodexSessionTokenUsageReader {
         return ParsedFileUsage(
             events: events,
             latestTotalTokens: latestTotalTokens,
+            latestTokenEventAt: latestTokenEventAt,
             tokenCountEventCount: tokenCountEventCount,
             missingLastUsageEventCount: missingLastUsageEventCount,
             latestLimitStatus: latestLimitStatus
@@ -395,6 +413,7 @@ private struct TokenIncrement {
 private struct ParsedFileUsage {
     let events: [TokenIncrement]
     let latestTotalTokens: Int64?
+    let latestTokenEventAt: Date?
     let tokenCountEventCount: Int
     let missingLastUsageEventCount: Int
     let latestLimitStatus: CodexLimitStatus?

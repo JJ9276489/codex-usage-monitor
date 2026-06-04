@@ -14,6 +14,7 @@ struct CodexUsageSnapshot: Equatable {
     let tokensLast7Days: Int64
     let tokensLast30Days: Int64
     let tokensAllTime: Int64
+    let latestTokenEventAt: Date?
     let limitStatus: CodexLimitStatus?
     let recentThreads: [CodexThreadUsage]
     let warning: String?
@@ -37,6 +38,7 @@ struct CodexUsageSnapshot: Equatable {
             tokensLast7Days: 0,
             tokensLast30Days: 0,
             tokensAllTime: 0,
+            latestTokenEventAt: nil,
             limitStatus: limitStatus,
             recentThreads: [],
             warning: warning

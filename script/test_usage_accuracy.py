@@ -235,6 +235,7 @@ def main():
         assert_equal(result["tokens_last_30_days"], 2450, "tokens_last_30_days")
         assert_equal(result["tokens_all_time_db"], 1001549, "tokens_all_time_db")
         assert_equal(result["tokens_all_time_reconciled"], 2256449, "tokens_all_time_reconciled")
+        assert_equal(result["latest_token_event_at_epoch"], today_10 + 60, "latest_token_event_at_epoch")
         assert_equal(
             result["tokens_all_time_reconciled_delta"],
             1254900,
