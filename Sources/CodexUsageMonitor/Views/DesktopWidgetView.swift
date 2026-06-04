@@ -2,6 +2,8 @@ import SwiftUI
 
 struct DesktopWidgetView: View {
     @ObservedObject var store: CodexUsageStore
+    @State private var refreshAcknowledged = false
+    @State private var refreshTurn = 0
 
     let onRefresh: () -> Void
     let onClose: () -> Void
@@ -68,22 +70,36 @@ struct DesktopWidgetView: View {
 
             Spacer()
 
-            Button(action: onRefresh) {
+            Button(action: triggerRefresh) {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12, weight: .heavy))
                     .foregroundStyle(.white.opacity(0.88))
                     .frame(width: 24, height: 24)
-                    .background(store.isRefreshing ? Color.green.opacity(0.22) : Color.white.opacity(0.08), in: Circle())
+                    .background(refreshAcknowledged ? Color.white.opacity(0.16) : Color.white.opacity(0.08), in: Circle())
                     .overlay {
                         Circle()
-                            .strokeBorder(store.isRefreshing ? Color.green.opacity(0.46) : Color.white.opacity(0.16), lineWidth: 1)
+                            .strokeBorder(refreshAcknowledged ? Color.white.opacity(0.3) : Color.white.opacity(0.16), lineWidth: 1)
                     }
-                    .rotationEffect(.degrees(store.isRefreshing ? 180 : 0))
-                    .animation(.linear(duration: 0.35), value: store.isRefreshing)
+                    .rotationEffect(.degrees(Double(refreshTurn) * 360))
+                    .animation(.linear(duration: 0.35), value: refreshTurn)
             }
             .buttonStyle(.plain)
             .help("Refresh usage")
             .accessibilityLabel("Refresh usage")
+        }
+    }
+
+    private func triggerRefresh() {
+        refreshTurn += 1
+        refreshAcknowledged = true
+        let turn = refreshTurn
+        onRefresh()
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            if refreshTurn == turn {
+                refreshAcknowledged = false
+            }
         }
     }
 
