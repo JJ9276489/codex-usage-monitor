@@ -17,6 +17,9 @@ jobs:
       - name: Show Swift version
         run: swift --version
 
+      - name: Check shell scripts
+        run: bash -n script/*.sh
+
       - name: Run audit fixture
         run: ./script/test_usage_accuracy.py
 

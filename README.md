@@ -1,92 +1,36 @@
 # Codex Usage Monitor
 
-A brutalist macOS desktop widget prototype for viewing local Codex token usage.
+A local macOS menu-bar app and desktop widget for tracking Codex token usage from the Codex files already on your Mac.
 
-This is a local-only monitor. It does not call OpenAI APIs or send usage data anywhere.
+[![CI](https://github.com/JJ9276489/codex-usage-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/JJ9276489/codex-usage-monitor/actions/workflows/ci.yml)
 
-The app reads Codex's local session logs and state database:
+## What It Shows
 
-- `~/.codex/sessions/**/*.jsonl`
-- `~/.codex/archived_sessions/*.jsonl`
-- `~/.codex/state_5.sqlite`
+- Tokens used today, in the last 5 hours, last 7 days, and last 30 days
+- All-time local token total from Codex's local state database
+- Latest observed 5-hour and 7-day Codex rate-limit percentages
+- Reset times for both the 5-hour and 7-day limits
+- Local diagnostics: session file count, `token_count` event count, and partial-data warnings
+- Recent local Codex threads in the menu bar popover
 
-It shows:
-
-- tokens used today
-- tokens used in the last 5 hours
-- tokens used in the last 7 and 30 days
-- all-time local token totals
-- latest observed 5-hour and 7-day Codex rate-limit usage, when Codex has logged a token count event
-- recent Codex threads and their token counts
-- manual refresh from the desktop widget or menu bar
-
-It does **not** read `auth.json`, access tokens, or OpenAI credentials.
-
-The first version runs as a menu bar app and opens a desktop-layer widget window. It is intentionally stark: dark material, monospaced type, high-contrast status tags, and compact metrics. It snaps its saved position to a small grid and refreshes local data every 5 seconds, but it is still a desktop-style widget window, not a WidgetKit extension yet.
-
-## Usage Accuracy
-
-Codex writes `token_count` events into local session JSONL files. This app uses those events as its primary source for token totals and rate-limit percentages.
-
-For time-window totals, the app reads each session's `last_token_usage.total_tokens` for the first observed `token_count` event, then computes positive deltas between consecutive cumulative `total_token_usage.total_tokens` values in the same session. That avoids double-counting repeated rate-limit-only records, and it avoids counting an old reopened thread's cumulative total as fresh usage.
-
-If no session `token_count` event is available, rolling totals stay at zero instead of falling back to inaccurate thread `updated_at` buckets. The all-time total still comes from Codex's local state database.
-
-The menu shows the number of session files and `token_count` events behind the current snapshot. If any session file cannot be read, or if a future/older Codex log omits exact `last_token_usage` fields, the widget marks the source as partial and the menu explains the degraded accuracy condition.
+The app is local-only. It does not call OpenAI APIs, does not read `auth.json`, does not read access tokens, and does not transmit usage data.
 
 ## Requirements
 
 - macOS 14 or newer
-- Swift 6 toolchain from Xcode or Xcode Command Line Tools
-- Codex installed and used locally at least once on the same Mac
-- Local Codex files under `~/.codex`, or a custom `CODEX_HOME`
+- Swift toolchain from Xcode or Xcode Command Line Tools
+- Codex used locally on the same Mac
+- Local Codex data under `~/.codex`, or a custom `CODEX_HOME`
 
-This is not a signed/notarized binary distribution yet. The supported public path is to clone the repo and build locally.
+This project does not ship a signed or notarized binary yet. The supported public path is to clone, build, and run locally.
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/JJ9276489/codex-usage-monitor.git
 cd codex-usage-monitor
+./script/doctor.sh --build
 ./script/build_and_run.sh
-```
-
-## Build And Run
-
-```bash
-./script/build_and_run.sh
-```
-
-The script builds the SwiftPM target, stages a local app bundle in `dist/`, and opens it as a menu bar app with the desktop widget visible.
-
-Useful modes:
-
-```bash
-./script/build_and_run.sh --verify
-./script/build_and_run.sh --logs
-./script/build_and_run.sh --debug
-./script/build_and_run.sh --build-only
-```
-
-## Audit Usage
-
-To verify the widget against raw local Codex data:
-
-```bash
-./script/audit_usage.py
-./script/audit_usage.py --json
-```
-
-The audit script uses the same source-of-truth model as the app: per-event `last_token_usage` for the first observation in a session, positive cumulative deltas after that, plus all-time totals from `state_5.sqlite`.
-
-## Checks
-
-Run the token accounting fixtures and build check before publishing changes:
-
-```bash
-./script/test_usage_accuracy.py
-./script/test_swift_usage_reader.sh
-./script/build_and_run.sh --build-only
 ```
 
 ## Install At Login
@@ -95,68 +39,112 @@ Run the token accounting fixtures and build check before publishing changes:
 ./script/install_login_item.sh
 ```
 
-This builds the app, copies it to `~/Applications/CodexUsageMonitor.app`, and registers a user LaunchAgent so it opens when you log in.
+This builds the app, copies it to `~/Applications/CodexUsageMonitor.app`, and registers a user LaunchAgent:
 
-If you use custom paths, set them while installing so the LaunchAgent keeps them:
-
-```bash
-CODEX_HOME=/path/to/.codex ./script/install_login_item.sh
-CODEX_USAGE_DB=/path/to/state_5.sqlite ./script/install_login_item.sh
+```text
+~/Library/LaunchAgents/io.github.jj9276489.codex-usage-monitor.plist
 ```
 
-To uninstall:
+To remove the installed app and login item:
 
 ```bash
 ./script/uninstall.sh
 ```
 
-If SwiftPM fails before compiling source with a PackageDescription or SDK mismatch, the run script automatically falls back to direct `swiftc` compilation.
+Custom Codex paths are preserved in the LaunchAgent when provided at install time:
 
-For a long-term SwiftPM fix, update or reinstall Xcode Command Line Tools, or install full Xcode and select it:
+```bash
+CODEX_HOME=/path/to/.codex ./script/install_login_item.sh
+CODEX_USAGE_DB=/path/to/state_5.sqlite ./script/install_login_item.sh
+CODEX_LOGS_DB=/path/to/logs_2.sqlite ./script/install_login_item.sh
+```
+
+## Accuracy Model
+
+Rolling totals come from local Codex session JSONL `token_count` events:
+
+- `~/.codex/sessions/**/*.jsonl`
+- `~/.codex/archived_sessions/*.jsonl`
+
+The reader uses exact `last_token_usage.total_tokens` for the first observed event in a session, then positive deltas between consecutive cumulative `total_token_usage.total_tokens` values. It ignores repeated rate-limit-only events and ignores empty limit payloads that do not include a real primary or secondary window.
+
+All-time totals come from:
+
+```text
+~/.codex/state_5.sqlite
+```
+
+Rate-limit percentages and reset times come from the newest usable local rate-limit payload in session JSONL or Codex logs.
+
+More detail: [docs/ACCURACY.md](docs/ACCURACY.md)
+
+## Audit And Verify
+
+Compare the widget to raw local Codex data:
+
+```bash
+./script/audit_usage.py
+./script/audit_usage.py --json
+```
+
+Run local checks:
+
+```bash
+./script/test_usage_accuracy.py
+./script/test_swift_usage_reader.sh
+./script/build_and_run.sh --build-only
+```
+
+Run environment diagnostics:
+
+```bash
+./script/doctor.sh
+./script/doctor.sh --build
+```
+
+## Development
+
+```bash
+./script/build_and_run.sh
+./script/build_and_run.sh --verify
+./script/build_and_run.sh --logs
+./script/build_and_run.sh --telemetry
+./script/build_and_run.sh --debug
+```
+
+If SwiftPM fails before compiling source with a PackageDescription or SDK mismatch, the run script falls back to direct `swiftc` compilation. For a long-term local SwiftPM fix, update or reinstall Xcode Command Line Tools, or install full Xcode and select it:
 
 ```bash
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 ```
 
-## Custom Database Path
+## Troubleshooting
 
-Set `CODEX_USAGE_DB` before launch:
-
-```bash
-CODEX_USAGE_DB=/path/to/state_5.sqlite ./script/build_and_run.sh
-```
-
-Set `CODEX_HOME` to read a different Codex home folder:
+Start with:
 
 ```bash
-CODEX_HOME=/path/to/.codex ./script/build_and_run.sh
+./script/doctor.sh
+./script/audit_usage.py
 ```
 
-## Privacy
+Common cases are covered in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
-The app reads local session `token_count` events for numeric usage. It also reads these `threads` table fields for recent-thread labels:
+## Compatibility
 
-- thread id
-- title
-- source
-- model
-- `tokens_used`
-- `updated_at`
+This project depends on Codex's local session JSONL and SQLite formats. Those are not a public stability contract. If a future Codex release changes `token_count` event shape, the app may show partial data or zeros until the reader is updated.
 
-Thread titles may appear in the menu UI. Session JSONL files can contain conversation/tool content, but the app only parses `token_count` event fields and does not transmit file contents. Do not publish screenshots if your thread titles include private information.
+The widget will not work for browser-only ChatGPT usage, non-macOS systems, or machines without local Codex session files.
 
-## Public Compatibility
+## Security And Privacy
 
-This project depends on Codex's local file formats, especially session JSONL `token_count` events and `state_5.sqlite`. Those are not a public stability contract, so a future Codex release can break the reader. If the widget shows zeros or stale limit bars after a Codex update, check whether new `token_count` events are still being written.
-
-The widget will not work for people who only use ChatGPT in a browser, people without local Codex session files, or non-macOS systems.
+See [SECURITY.md](SECURITY.md).
 
 ## Roadmap
 
-- Add a proper signed app bundle.
-- Add an optional WidgetKit extension if a stable usage feed is available.
-- Add a provider interface for Enterprise Analytics API usage.
-- Add a stable integration for live remaining limits if OpenAI exposes one.
+- Signed and notarized release builds
+- Optional WidgetKit extension if a stable usage feed becomes available
+- Better first-run onboarding for missing Codex data
+- Stable API-backed provider if OpenAI exposes official personal usage/remaining-limit endpoints
 
 ## License
 
