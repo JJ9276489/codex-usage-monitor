@@ -169,9 +169,9 @@ struct DesktopWidgetView: View {
 
     private var lowerGrid: some View {
         HStack(spacing: 8) {
-            BrutalistMetric(label: "7D", value: UsageFormat.compactTokens(snapshot.tokensLast7Days))
-            BrutalistMetric(label: "30D", value: UsageFormat.compactTokens(snapshot.tokensLast30Days))
-            BrutalistMetric(label: "ALL", value: UsageFormat.compactTokens(snapshot.tokensAllTime))
+            WidgetMetric(label: "7D", value: UsageFormat.compactTokens(snapshot.tokensLast7Days))
+            WidgetMetric(label: "30D", value: UsageFormat.compactTokens(snapshot.tokensLast30Days))
+            WidgetMetric(label: "ALL", value: UsageFormat.compactTokens(snapshot.tokensAllTime))
         }
     }
 
@@ -335,7 +335,7 @@ struct DesktopWidgetView: View {
     }
 }
 
-private struct BrutalistMetric: View {
+private struct WidgetMetric: View {
     let label: String
     let value: String
 
