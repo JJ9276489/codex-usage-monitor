@@ -1,6 +1,6 @@
 # Codex Usage Monitor
 
-A local macOS menu-bar app and desktop widget for tracking Codex token usage from the Codex files already on your Mac.
+A local macOS desktop widget and menu-bar app for tracking Codex token usage from the Codex files already on your Mac.
 
 [![CI](https://github.com/JJ9276489/codex-usage-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/JJ9276489/codex-usage-monitor/actions/workflows/ci.yml)
 
